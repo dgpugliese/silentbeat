@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Sign in</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page signin-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="t-mono t-faint" style="font-size: 11px;">v0 · public alpha</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 44px; margin: 0;">sign in.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px;">No passwords. Passkey first; magic link as fallback.</p>
+
+  <section class="wobble signin-card">
+    <div class="signin-method">
+      <div class="h-hand" style="font-size: 22px;">passkey</div>
+      <p style="font-size: 13px; margin-top: 4px;">Use the passkey on this device. If you've enrolled more than one, we'll prompt you.</p>
+      <button class="btn btn-primary" type="button">use passkey →</button>
+    </div>
+
+    <hr class="hr-sketch" style="margin: 18px 0;" />
+
+    <div class="signin-method">
+      <div class="h-hand" style="font-size: 22px;">magic link</div>
+      <p style="font-size: 13px; margin-top: 4px;">If you've lost your passkey, we'll email a one-time link. You'll still need your defuse PIN to access armed switches.</p>
+      <input class="field" placeholder="email" type="email" style="margin-top: 8px;" />
+      <button class="btn" type="button" style="margin-top: 8px;">email me a link</button>
+    </div>
+
+    <hr class="hr-sketch" style="margin: 18px 0;" />
+
+    <div class="signin-method">
+      <div class="h-hand" style="font-size: 22px;">recovery code</div>
+      <p style="font-size: 13px; margin-top: 4px;">If you've also lost email access, use one of the 10 recovery codes you saved at signup. Each works once.</p>
+      <a class="btn btn-sm" href="/signin/recovery">use a recovery code</a>
+    </div>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    New here? <a href="/signup.html">create an account</a> — you'll be asked to enroll a passkey and download recovery codes before you can arm any switch.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/threat-model.html">threat model</a></span>
+  </div>
+
+</main>
+
+</body>
+</html>

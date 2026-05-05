@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — A message was released to you</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page recipient-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="stamp-info">step 1 of 2</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 32px; margin: 0;">confirm it's you.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px;">
+    Before we hand over the server-held key share, prove you control the inbox Sam picked.
+  </p>
+
+  <section class="wobble verify-card">
+    <div class="t-mono" style="font-size: 12px;">recipient: jane@example.org</div>
+    <div class="pin-input" id="pin-input">
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+      <input class="pin-cell" maxlength="1" inputmode="numeric" />
+    </div>
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
+      6-digit code we just emailed to jane@example.org
+    </div>
+  </section>
+
+  <div class="recipient-actions">
+    <button class="btn btn-primary" type="button">verify →</button>
+    <button class="btn" type="button">resend code</button>
+  </div>
+
+  <hr class="hr-sketch" />
+
+  <section class="wobble recipient-context">
+    <div class="t-mono t-soft" style="font-size: 11px; letter-spacing: 0.1em;">// what to expect after you verify</div>
+    <ol style="padding-left: 18px; font-size: 13px; line-height: 1.65; margin-top: 6px;">
+      <li>We hand you our half of the key (server share A).</li>
+      <li>You upload the <span class="t-mono">rescue file</span> Sam asked you to save when he set this up. That file holds your half (share B).</li>
+      <li>Both halves combine in your browser to decrypt the message. We never see the combined key.</li>
+      <li>Save the contents locally. The release link won't work twice on a fresh device.</li>
+    </ol>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    If this seems wrong — Sam is fine, they meant to defuse, this isn't intended for you — please tell us.
+    We can't undo a release, but we can help you understand what was sent and to whom.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">verify in public log</a></span>
+  </div>
+
+</main>
+
+<script>
+  const cells = document.querySelectorAll('#pin-input .pin-cell');
+  cells.forEach((c, i) => {
+    c.addEventListener('input', e => {
+      if (!/^[0-9]$/.test(e.target.value)) e.target.value = '';
+      if (e.target.value && i < cells.length - 1) cells[i + 1].focus();
+    });
+    c.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !c.value && i > 0) cells[i - 1].focus();
+    });
+  });
+</script>
+
+</body>
+</html>

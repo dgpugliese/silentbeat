@@ -1,0 +1,137 @@
+/* SilentBeat wireframes - sketchy, low-fi, dark mode */
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Kalam:wght@300;400;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --ink: #ece8dc;          /* foreground (was dark, now light) */
+  --ink-soft: #b8b6af;
+  --ink-faint: #777572;
+  --paper: #1c1d20;        /* background (was light, now dark) */
+  --paper-shade: #26272b;
+  --accent: oklch(0.72 0.18 25);   /* warm red, brighter for dark bg */
+  --accent-2: oklch(0.78 0.18 150); /* green */
+  --accent-3: oklch(0.74 0.16 250); /* blue */
+  --hand: 'Kalam', cursive;
+  --hand-bold: 'Caveat', cursive;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: var(--hand);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.sketch { border: 2px solid var(--ink); border-radius: 4px; position: relative; }
+.sketch-2 { border-width: 3px; }
+.sketch-thin { border-width: 1.5px; }
+
+.wobble {
+  border: 2.5px solid var(--ink);
+  border-radius: 12px 8px 14px 6px / 6px 14px 8px 12px;
+}
+.wobble-sm {
+  border: 2px solid var(--ink);
+  border-radius: 8px 5px 10px 4px / 4px 10px 5px 8px;
+}
+.dashed {
+  border: 2px dashed var(--ink-soft);
+  border-radius: 6px;
+}
+
+.h-hand { font-family: var(--hand-bold); font-weight: 700; letter-spacing: -0.01em; line-height: 1.05; }
+.t-mono { font-family: var(--mono); font-size: 0.78em; letter-spacing: -0.02em; }
+.t-faint { color: var(--ink-faint); }
+.t-soft { color: var(--ink-soft); }
+
+.img-ph {
+  background: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255,255,255,0.06) 8px 9px);
+  border: 2px solid var(--ink);
+  border-radius: 6px 4px 8px 4px / 4px 8px 4px 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-soft);
+  text-align: center; padding: 8px;
+}
+
+.annot { font-family: var(--hand); color: var(--accent); font-size: 14px; position: absolute; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; font-family: var(--hand); font-size: 16px;
+  background: transparent; border: 2px solid var(--ink); color: var(--ink);
+  border-radius: 8px 5px 10px 4px / 4px 10px 5px 8px;
+  cursor: pointer;
+}
+.btn-primary { background: var(--ink); color: var(--paper); }
+.btn-danger { border-color: var(--accent); color: var(--accent); }
+.btn-danger.btn-primary { background: var(--accent); color: var(--paper); }
+
+.field {
+  font-family: var(--hand); border: 2px solid var(--ink);
+  border-radius: 6px 4px 8px 4px / 4px 8px 4px 6px;
+  padding: 8px 10px; background: transparent; color: var(--ink);
+  font-size: 15px; width: 100%;
+}
+
+.stamp {
+  display: inline-block; border: 2px solid var(--accent); color: var(--accent);
+  padding: 2px 8px; font-family: var(--hand-bold); font-size: 14px;
+  transform: rotate(-3deg); border-radius: 4px;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.stamp-ok { border-color: var(--accent-2); color: var(--accent-2); }
+.stamp-info { border-color: var(--accent-3); color: var(--accent-3); }
+.stamp-ink { border-color: var(--ink); color: var(--ink); }
+
+.dotgrid {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.hr-sketch {
+  height: 2px; background: var(--ink); border: 0;
+  margin: 12px 0; border-radius: 2px; transform: skewY(-0.4deg);
+}
+
+.hatch { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 4px, transparent 4px 8px); }
+
+@keyframes blip {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.4); opacity: 0.4; }
+}
+.blip {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent-2);
+  animation: blip 1.6s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--accent-2);
+}
+
+.row { display: flex; gap: 12px; align-items: stretch; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.between { justify-content: space-between; }
+.center { justify-content: center; align-items: center; }
+.grow { flex: 1; }
+.full { width: 100%; height: 100%; }
+
+.sticker {
+  background: oklch(0.4 0.06 90); color: var(--ink);
+  padding: 4px 8px; border-radius: 4px;
+  font-family: var(--hand); font-size: 13px;
+  display: inline-block; transform: rotate(-1.5deg);
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+}
+.sticker-info { background: oklch(0.4 0.08 240); }
+.sticker-warn { background: oklch(0.42 0.10 30); }
+
+.frame {
+  background: var(--paper); padding: 18px;
+  overflow: hidden; position: relative;
+  color: var(--ink);
+}
+/* frame-dark is now a no-op (everything is dark) but kept so existing JSX doesn't break */
+.frame-dark { background: var(--paper); color: var(--ink); }
+
+.arrow-r::after { content: "->"; font-family: var(--hand-bold); font-size: 28px; }

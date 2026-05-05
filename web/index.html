@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — If you go silent, someone gets the message.</title>
+<meta name="description" content="An honest dead man's switch. Encrypted in your browser. Released only if you stop checking in." />
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-wide">
+
+  <nav class="topbar">
+    <div class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </div>
+    <div class="nav-links">
+      <a href="#how">how it works</a>
+      <a href="/threat-model.html">trust model</a>
+      <a href="/log.html">public log</a>
+      <a class="btn btn-sm" href="/signin.html">sign in</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1 class="h-hand hero-title">
+      If you go silent,<br />
+      someone gets the<br />
+      message.
+    </h1>
+    <svg class="underline-sketch" width="300" height="10" viewBox="0 0 300 10" aria-hidden="true">
+      <path d="M2 6 Q 75 1, 150 5 T 298 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+    </svg>
+    <p class="lede">SilentBeat is a dead man's switch. You set a timer, an encrypted payload, and a recipient. If you don't check in before the timer ends, the payload is released. That's it.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="/create.html">create a switch &rarr;</a>
+      <a class="btn" href="/threat-model.html">read trust model</a>
+    </div>
+    <div class="annot annot-hero">
+      no marketing<br />weasel-words
+    </div>
+  </section>
+
+  <hr class="hr-sketch" />
+
+  <section class="trust-grid">
+    <div class="trust-col">
+      <h3 class="h-hand">What the server can do</h3>
+      <svg class="underline-sketch u-red" width="180" height="10" viewBox="0 0 180 10" aria-hidden="true">
+        <path d="M2 6 Q 45 1, 90 5 T 178 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+      </svg>
+      <p>Hold an encrypted blob. Hold half of the key. Release that half to your recipient when your timer expires. <span class="sticker sticker-warn">it cannot decrypt alone</span></p>
+    </div>
+    <div class="trust-col">
+      <h3 class="h-hand">What it can't do</h3>
+      <svg class="underline-sketch u-green" width="180" height="10" viewBox="0 0 180 10" aria-hidden="true">
+        <path d="M2 6 Q 45 1, 90 5 T 178 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+      </svg>
+      <p>Decrypt your payload. Read your recipient's email in plaintext. Survive a Cloudflare-wide outage. Protect you from a recipient who can be coerced.</p>
+    </div>
+    <div class="trust-col">
+      <h3 class="h-hand">What you trust us with</h3>
+      <svg class="underline-sketch u-blue" width="180" height="10" viewBox="0 0 180 10" aria-hidden="true">
+        <path d="M2 6 Q 45 1, 90 5 T 178 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+      </svg>
+      <p>Running the timer honestly. Publishing every release in our public log. Telling you when we're compelled by court order, to the extent we legally can.</p>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span>cloudflare workers · d1 · r2</span>
+  </div>
+
+</main>
+
+</body>
+</html>

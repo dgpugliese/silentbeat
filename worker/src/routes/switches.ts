@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
-import { hashPin, randomBytes, b64ToBytes, aeadEncrypt } from '../lib/crypto';
+import { hashPin, randomBytes, b64ToBytes, bytesToB64, aeadEncrypt, sha256Hex } from '../lib/crypto';
 import { append } from '../lib/auditlog';
 import { requireUser } from './middleware';
 
@@ -43,6 +43,12 @@ switches.post('/', async (c) => {
   const payloadKey = `payloads/${switchId}`;
   const shareA = randomBytes(32);
 
+  // One-time enrollment token: plaintext returned to the user (and emailed to
+  // the recipient in Phase 4); only the hash is stored. Without this token the
+  // /enroll endpoint refuses, so a recipientId leak alone can't hijack enrollment.
+  const enrollmentToken = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+  const enrollmentTokenHash = await sha256Hex(enrollmentToken);
+
   const [defuse, duress] = await Promise.all([hashPin(body.defusePin), hashPin(body.duressPin)]);
   const flip = Math.random() < 0.5;
   const pair = flip ? [duress, defuse] : [defuse, duress];
@@ -71,17 +77,25 @@ switches.post('/', async (c) => {
            0, duressBlob,
            expiry, body.timerSeconds, now, now),
     c.env.DB.prepare(
-      `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
+      `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, enrollment_token_hash, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
     ).bind(recipientId, switchId, emailBlob,
            new Uint8Array(0), // iv inlined into emailBlob; column kept for schema compat
-           new Uint8Array(0)),
+           new Uint8Array(0),
+           enrollmentTokenHash),
   ]);
 
   await append(c.env, switchId, 'switch_created');
 
-  // TODO: send recipient enrollment email
-  return c.json({ switchId, recipientId, status: 'pending', enrollmentRequired: true });
+  // TODO Phase 4: send enrollment email containing this URL.
+  const enrollmentUrl = `${c.env.PUBLIC_BASE_URL}/recipient.html?r=${recipientId}&t=${enrollmentToken}`;
+  return c.json({
+    switchId,
+    recipientId,
+    status: 'pending',
+    enrollmentRequired: true,
+    ...(c.env.ENVIRONMENT === 'development' ? { dev_enrollment_url: enrollmentUrl } : {}),
+  });
 });
 
 switches.get('/:id', async (c) => {

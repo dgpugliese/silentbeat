@@ -1,31 +1,22 @@
 import { Hono } from 'hono';
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
 import { sha256Hex, randomBytes, bytesToB64 } from '../lib/crypto';
 import { createSession, destroySession, readBearer, readSession } from '../lib/session';
+import { requireUser } from './middleware';
 
-export const auth = new Hono<{ Bindings: Env }>();
+export const auth = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
-// --- Passkey: Phase 3 will wire @simplewebauthn/server. Stubs here ---
+const enc = new TextEncoder();
+const CHAL_TTL = 300;
 
-auth.post('/passkey/register/begin', async (c) => {
-  // TODO Phase 3: generate registration options, store challenge in KV
-  return c.json({ stub: true, message: 'passkey registration not wired yet' }, 501);
-});
-
-auth.post('/passkey/register/finish', async (c) => {
-  return c.json({ stub: true }, 501);
-});
-
-auth.post('/passkey/authenticate/begin', async (c) => {
-  return c.json({ stub: true }, 501);
-});
-
-auth.post('/passkey/authenticate/finish', async (c) => {
-  return c.json({ stub: true }, 501);
-});
-
-// --- Magic link (real, minimal) ---
+// --- Magic link ---
 
 auth.post('/magic/request', async (c) => {
   const { email } = await c.req.json<{ email: string }>();
@@ -49,8 +40,7 @@ auth.post('/magic/request', async (c) => {
     `INSERT INTO magic_tokens (id, user_id, token_hash, purpose, expires_at) VALUES (?, ?, ?, 'login', ?)`,
   ).bind(ulid(), user.id, tokenHash, expires).run();
 
-  // TODO Phase 3: send email via Resend/Postmark.
-  // For now, return the link directly in dev.
+  // TODO Phase 4: send email via Resend/Postmark.
   const link = `${c.env.PUBLIC_BASE_URL}/api/auth/magic/consume?t=${tokenRaw}`;
   if (c.env.ENVIRONMENT === 'development') return c.json({ ok: true, dev_link: link });
   return c.json({ ok: true });
@@ -95,3 +85,144 @@ auth.get('/me', async (c) => {
     .bind(session.userId).first();
   return c.json({ user });
 });
+
+// --- Passkey registration (requires existing session) ---
+
+auth.post('/passkey/register/begin', requireUser, async (c) => {
+  const userId = c.get('userId');
+  const user = await c.env.DB.prepare(`SELECT id, email FROM users WHERE id = ?`)
+    .bind(userId).first<{ id: string; email: string }>();
+  if (!user) return c.json({ error: 'no user' }, 404);
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT credential_id, transports FROM passkey_credentials WHERE user_id = ?`,
+  ).bind(userId).all<{ credential_id: string; transports: string | null }>();
+
+  const excludeCredentials = (results ?? []).map((r) => ({
+    id: r.credential_id,
+    transports: (r.transports ?? '').split(',').filter(Boolean) as AuthenticatorTransportFuture[],
+  }));
+
+  const options = await generateRegistrationOptions({
+    rpName: c.env.RP_NAME,
+    rpID: c.env.RP_ID,
+    userName: user.email,
+    userID: enc.encode(user.id),
+    attestationType: 'none',
+    excludeCredentials,
+    authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+  });
+
+  await c.env.SESSIONS.put(`pk-reg-chal:${userId}`, options.challenge, { expirationTtl: CHAL_TTL });
+  return c.json(options);
+});
+
+auth.post('/passkey/register/finish', requireUser, async (c) => {
+  const userId = c.get('userId');
+  const response = await c.req.json();
+  const challenge = await c.env.SESSIONS.get(`pk-reg-chal:${userId}`);
+  if (!challenge) return c.json({ error: 'no challenge' }, 400);
+
+  const verification = await verifyRegistrationResponse({
+    response,
+    expectedChallenge: challenge,
+    expectedOrigin: c.env.RP_ORIGIN,
+    expectedRPID: c.env.RP_ID,
+  });
+  if (!verification.verified || !verification.registrationInfo) {
+    return c.json({ error: 'verification failed' }, 400);
+  }
+
+  const { credentialID, credentialPublicKey, counter, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+  const transports = (response?.response?.transports ?? []).join(',');
+
+  await c.env.DB.prepare(
+    `INSERT INTO passkey_credentials
+     (credential_id, user_id, public_key, counter, transports, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    credentialID,
+    userId,
+    credentialPublicKey,
+    counter,
+    transports,
+    Date.now(),
+  ).run();
+
+  await c.env.SESSIONS.delete(`pk-reg-chal:${userId}`);
+  return c.json({ ok: true, credentialDeviceType, credentialBackedUp });
+});
+
+// --- Passkey authentication (no prior session) ---
+
+auth.post('/passkey/authenticate/begin', async (c) => {
+  const body = await c.req.json<{ email?: string }>().catch(() => ({} as { email?: string }));
+
+  let allowCredentials: Array<{ id: string; transports?: AuthenticatorTransportFuture[] }> | undefined;
+  if (body.email) {
+    const user = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
+      .bind(body.email).first<{ id: string }>();
+    if (user) {
+      const { results } = await c.env.DB.prepare(
+        `SELECT credential_id, transports FROM passkey_credentials WHERE user_id = ?`,
+      ).bind(user.id).all<{ credential_id: string; transports: string | null }>();
+      allowCredentials = (results ?? []).map((r) => ({
+        id: r.credential_id,
+        transports: (r.transports ?? '').split(',').filter(Boolean) as AuthenticatorTransportFuture[],
+      }));
+    }
+  }
+
+  const options = await generateAuthenticationOptions({
+    rpID: c.env.RP_ID,
+    allowCredentials,
+    userVerification: 'preferred',
+  });
+
+  const challengeId = ulid();
+  await c.env.SESSIONS.put(`pk-auth-chal:${challengeId}`, options.challenge, { expirationTtl: CHAL_TTL });
+  return c.json({ ...options, challengeId });
+});
+
+auth.post('/passkey/authenticate/finish', async (c) => {
+  const { response, challengeId } = await c.req.json<{ response: any; challengeId: string }>();
+  const challenge = await c.env.SESSIONS.get(`pk-auth-chal:${challengeId}`);
+  if (!challenge) return c.json({ error: 'no challenge' }, 400);
+
+  const credentialId = response.id;
+  const cred = await c.env.DB.prepare(
+    `SELECT credential_id, user_id, public_key, counter, transports
+     FROM passkey_credentials WHERE credential_id = ?`,
+  ).bind(credentialId).first<{
+    credential_id: string; user_id: string;
+    public_key: ArrayBuffer; counter: number; transports: string | null;
+  }>();
+  if (!cred) return c.json({ error: 'credential not found' }, 404);
+
+  const verification = await verifyAuthenticationResponse({
+    response,
+    expectedChallenge: challenge,
+    expectedOrigin: c.env.RP_ORIGIN,
+    expectedRPID: c.env.RP_ID,
+    authenticator: {
+      credentialID: cred.credential_id,
+      credentialPublicKey: new Uint8Array(cred.public_key),
+      counter: cred.counter,
+      transports: (cred.transports ?? '').split(',').filter(Boolean) as AuthenticatorTransportFuture[],
+    },
+  });
+  if (!verification.verified) return c.json({ error: 'verification failed' }, 401);
+
+  await c.env.DB.prepare(
+    `UPDATE passkey_credentials SET counter = ?, last_used_at = ? WHERE credential_id = ?`,
+  ).bind(verification.authenticationInfo.newCounter, Date.now(), credentialId).run();
+  await c.env.DB.prepare(`UPDATE users SET last_seen_at = ? WHERE id = ?`)
+    .bind(Date.now(), cred.user_id).run();
+
+  await c.env.SESSIONS.delete(`pk-auth-chal:${challengeId}`);
+  const session = await createSession(c.env, cred.user_id);
+  return c.json({ ok: true, session });
+});
+
+// Hono types only — re-exported for the route definitions
+type AuthenticatorTransportFuture = 'usb' | 'nfc' | 'ble' | 'internal' | 'cable' | 'hybrid' | 'smart-card';

@@ -7,6 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./web"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+html_handling = "none"
 
 [[d1_databases]]
 binding = "DB"
@@ -36,3 +37,10 @@ crons = ["*/5 * * * *"]
 [vars]
 ENVIRONMENT = "development"
 PUBLIC_BASE_URL = "http://localhost:8787"
+RP_ID = "localhost"
+RP_NAME = "SilentBeat"
+RP_ORIGIN = "http://localhost:8787"
+# Secrets (set with `wrangler secret put NAME`):
+#   MASTER_KEY        — 32 bytes b64, AES-GCM master for KMS-style DEK wrapping
+#   LOG_SIGNING_KEY   — Ed25519 PKCS8 b64, signs every audit_log entry
+#   LOG_PUBLIC_KEY    — Ed25519 SPKI b64, published so anyone can verify the chain

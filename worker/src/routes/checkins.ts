@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
-import { verifyPin, randomBytes, sha256Hex } from '../lib/crypto';
+import { verifyPin, randomBytes, sha256Hex, aeadDecrypt } from '../lib/crypto';
 import { append } from '../lib/auditlog';
 import { requireUser } from './middleware';
 
@@ -20,18 +20,17 @@ checkins.post('/:id/checkin', async (c) => {
   if (!/^\d{6,}$/.test(pin)) return c.json({ error: 'invalid pin' }, 400);
 
   const sw = await c.env.DB.prepare(
-    `SELECT id, status, timer_seconds, pin_hash_set_json, duress_slot, payload_r2_key
+    `SELECT id, status, timer_seconds, pin_hash_set_json, duress_slot_wrapped, payload_r2_key
      FROM switches WHERE id = ? AND user_id = ? AND status = 'armed'`,
   ).bind(id, userId).first<{
     id: string; status: string; timer_seconds: number;
-    pin_hash_set_json: string; duress_slot: number; payload_r2_key: string;
+    pin_hash_set_json: string; duress_slot_wrapped: ArrayBuffer; payload_r2_key: string;
   }>();
   if (!sw) return c.json({ error: 'switch not armed' }, 400);
 
   const set = JSON.parse(sw.pin_hash_set_json) as PinHashSet;
   // Try both slots in constant order; the matching slot tells us defuse vs duress
-  // via the duress_slot column. (Phase 3: wrap duress_slot under a Workers Secret
-  // so a DB-only dump cannot read it.)
+  // by comparing to duress_slot, which we unwrap from a master-key-protected blob.
   const slot0 = await verifyPin(pin, set.hashes[0]!, set.salts[0]!);
   const slot1 = await verifyPin(pin, set.hashes[1]!, set.salts[1]!);
   const matchedSlot = slot0 ? 0 : slot1 ? 1 : -1;
@@ -39,7 +38,8 @@ checkins.post('/:id/checkin', async (c) => {
     // TODO Phase 3: increment failure counter, lock after 5/h
     return c.json({ error: 'wrong pin' }, 401);
   }
-  const isDuress = matchedSlot === sw.duress_slot;
+  const duressSlotBytes = await aeadDecrypt(c.env, new Uint8Array(sw.duress_slot_wrapped), new TextEncoder().encode(id));
+  const isDuress = matchedSlot === duressSlotBytes[0];
 
   const ipHash = await sha256Hex(c.req.header('cf-connecting-ip') ?? '');
   const uaHash = await sha256Hex(c.req.header('user-agent') ?? '');

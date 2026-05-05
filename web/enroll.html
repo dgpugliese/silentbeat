@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Enroll as recipient</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page recipient-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="stamp-info" id="stamp">step 1 of 3</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 32px; margin: 0;" id="title">enroll as a SilentBeat recipient.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px;" id="lede">
+    Someone has named you as the recipient of a dead-man's-switch message. To make sure
+    only <em>you</em> can decrypt it, we'll generate a keypair in your browser. Save the
+    rescue file — without it the message can never be decrypted.
+  </p>
+
+  <section class="wobble verify-card" id="step1" style="padding: 16px;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// step 1 — generate your keypair</div>
+    <p style="font-size: 14px; margin-top: 8px;">
+      Click below. We'll generate a P-256 keypair locally. The private half stays on your
+      device (downloaded as a rescue file). The public half goes back to SilentBeat.
+    </p>
+    <button id="gen-btn" class="btn btn-primary" type="button" style="margin-top: 8px;">generate keypair</button>
+    <div id="gen-status" class="t-mono t-faint" style="font-size: 11px; margin-top: 8px;"></div>
+  </section>
+
+  <section class="wobble verify-card" id="step2" style="padding: 16px; display: none;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// step 2 — save your rescue file</div>
+    <p style="font-size: 14px; margin-top: 8px;">
+      The rescue file contains your private key. Save it somewhere durable —
+      a password manager, an encrypted folder, a printed copy. Without it, no message
+      that uses this enrollment can ever be decrypted.
+    </p>
+    <a id="rescue-link" class="btn btn-primary" style="margin-top: 8px;">download rescue file</a>
+    <button id="confirm-saved-btn" class="btn" type="button" style="margin-top: 8px;" disabled>i saved it — continue</button>
+  </section>
+
+  <section class="wobble verify-card" id="step3" style="padding: 16px; display: none;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// step 3 — submit enrollment</div>
+    <div id="enroll-status" class="t-mono" style="font-size: 13px; line-height: 1.85; margin-top: 8px;"></div>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    Phase 5 note — the recipient&rsquo;s public key is captured but the payload key is
+    currently held server-side under a Workers Secret. Phase 6 will move to true
+    split-key (ECIES of recipient share B under your public key) so the server cannot
+    decrypt unilaterally.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/threat-model.html">threat model</a> · <a href="/log.html">public log</a></span>
+  </div>
+
+</main>
+
+<script src="/app.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const recipientId = params.get('r');
+  const enrollmentToken = params.get('t');
+
+  const genBtn = document.getElementById('gen-btn');
+  const genStatus = document.getElementById('gen-status');
+  const step1 = document.getElementById('step1');
+  const step2 = document.getElementById('step2');
+  const step3 = document.getElementById('step3');
+  const rescueLink = document.getElementById('rescue-link');
+  const confirmSaved = document.getElementById('confirm-saved-btn');
+  const enrollStatus = document.getElementById('enroll-status');
+  const stamp = document.getElementById('stamp');
+
+  if (!recipientId || !enrollmentToken) {
+    document.getElementById('title').textContent = 'enrollment link is invalid.';
+    document.getElementById('lede').textContent = 'this URL is missing the recipient ID or enrollment token.';
+    step1.style.display = 'none';
+  }
+
+  let pubkeyJwk = null;
+  let privkeyJwk = null;
+
+  genBtn.addEventListener('click', async () => {
+    genBtn.disabled = true;
+    genStatus.textContent = 'generating P-256 keypair…';
+    try {
+      const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']);
+      pubkeyJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+      privkeyJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+      genStatus.textContent = 'keypair generated. private key never leaves this browser.';
+
+      const rescue = {
+        version: 1,
+        recipient_id: recipientId,
+        generated_at: new Date().toISOString(),
+        privateKeyJwk: privkeyJwk,
+        publicKeyJwk: pubkeyJwk,
+        note: 'Keep this file. Without the privateKeyJwk, no SilentBeat release for this recipient_id can be decrypted.',
+      };
+      const blob = new Blob([JSON.stringify(rescue, null, 2)], { type: 'application/json' });
+      rescueLink.href = URL.createObjectURL(blob);
+      rescueLink.download = 'silentbeat-rescue-' + recipientId + '.json';
+      rescueLink.addEventListener('click', () => { setTimeout(() => { confirmSaved.disabled = false; }, 500); });
+
+      step2.style.display = 'block';
+      stamp.textContent = 'step 2 of 3';
+    } catch (e) {
+      genStatus.textContent = 'failed: ' + e.message;
+      genBtn.disabled = false;
+    }
+  });
+
+  confirmSaved.addEventListener('click', async () => {
+    confirmSaved.disabled = true;
+    step3.style.display = 'block';
+    stamp.textContent = 'step 3 of 3';
+    enrollStatus.innerHTML = '<div class="t-soft">→ submitting public key…</div>';
+
+    try {
+      // Phase 5: server holds payload K under master KEK; share_b_to_recipient is a placeholder.
+      // Phase 6 will replace this with ECIES(shareB, recipientPubkey).
+      await SB.api('/api/recipients/' + recipientId + '/enroll', {
+        method: 'POST',
+        body: JSON.stringify({
+          pubkeyJwk: JSON.stringify(pubkeyJwk),
+          shareBToRecipient: 'phase-6-placeholder',
+          enrollmentToken,
+        }),
+      });
+      enrollStatus.innerHTML += '<div class="t-soft">→ confirming test fire…</div>';
+      await SB.api('/api/recipients/' + recipientId + '/test-fire/confirm', { method: 'POST' });
+      enrollStatus.innerHTML +=
+        '<div style="color: var(--accent-2)">→ enrolled and confirmed. switch is now ARMED.</div>' +
+        '<div style="margin-top:8px" class="t-soft">You can close this tab. If the user goes silent, you&rsquo;ll receive a release email with the decrypted payload key and a download URL.</div>';
+    } catch (e) {
+      enrollStatus.innerHTML = '<div style="color: var(--accent)">error: ' + (e.body?.error || e.message) + '</div>';
+    }
+  });
+</script>
+
+</body>
+</html>

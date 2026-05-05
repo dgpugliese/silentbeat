@@ -30,8 +30,9 @@
     <div class="signin-method">
       <div class="h-hand" style="font-size: 22px;">step 1 — your email</div>
       <p>Use the inbox you'll have for the long term. If you lose access to it and your passkey, you'll need a recovery code to get back in.</p>
-      <input class="field" placeholder="email" type="email" />
-      <button class="btn btn-primary" type="button" style="margin-top: 8px;">send sign-in link →</button>
+      <input id="email" class="field" placeholder="email" type="email" />
+      <button id="magic-btn" class="btn btn-primary" type="button" style="margin-top: 8px;">send sign-in link →</button>
+      <div id="magic-status" class="t-soft" style="font-size: 12px; margin-top: 10px; min-height: 16px;"></div>
     </div>
 
     <hr class="hr-sketch" style="margin: 18px 0;" />
@@ -57,6 +58,35 @@
   </div>
 
 </main>
+
+<script src="/app.js"></script>
+<script>
+  if (SB.isSignedIn()) location.replace('/dashboard.html');
+
+  const emailEl = document.getElementById('email');
+  const btn = document.getElementById('magic-btn');
+  const status = document.getElementById('magic-status');
+
+  async function submit() {
+    const email = (emailEl.value || '').trim();
+    if (!email.includes('@')) { status.textContent = 'enter a valid email.'; return; }
+    btn.disabled = true; status.textContent = 'sending…';
+    try {
+      const r = await SB.api('/api/auth/magic/request', { method: 'POST', body: JSON.stringify({ email }) });
+      if (r.dev_link) {
+        status.innerHTML = 'dev mode — <a href="' + r.dev_link + '">click to finish sign-up</a>';
+      } else {
+        status.textContent = 'check your inbox for the link.';
+      }
+    } catch (e) {
+      status.textContent = 'error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  btn.addEventListener('click', submit);
+  emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+</script>
 
 </body>
 </html>

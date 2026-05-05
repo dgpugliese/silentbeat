@@ -23,6 +23,7 @@ switches.post('/', async (c) => {
   const body = await c.req.json<{
     payloadCiphertextB64: string;
     payloadSizeBytes: number;
+    payloadKeyB64: string;     // 32-byte AES-GCM key, client-generated; Phase 6 will split
     recipientEmail: string;
     timerSeconds: number;
     defusePin: string;
@@ -37,6 +38,9 @@ switches.post('/', async (c) => {
   }
   if (body.defusePin === body.duressPin) {
     return c.json({ error: 'defuse and duress PINs must differ' }, 400);
+  }
+  if (!body.payloadKeyB64) {
+    return c.json({ error: 'payloadKeyB64 required' }, 400);
   }
 
   const switchId = ulid();
@@ -62,6 +66,8 @@ switches.post('/', async (c) => {
   const emailBlob = await aeadEncrypt(c.env, new TextEncoder().encode(body.recipientEmail), new TextEncoder().encode(switchId));
   // Wrap the duress-slot bit so a DB-only dump can't tell defuse from duress.
   const duressBlob = await aeadEncrypt(c.env, new Uint8Array([duressSlot]), new TextEncoder().encode(switchId));
+  // Wrap the client's payload AES key under the master KEK. Phase 6: replace with split-key.
+  const payloadKeyWrapped = await aeadEncrypt(c.env, b64ToBytes(body.payloadKeyB64), new TextEncoder().encode(switchId));
 
   const now = Date.now();
   const expiry = now + body.timerSeconds * 1000;
@@ -69,13 +75,13 @@ switches.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO switches
-       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped,
+       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped, payload_key_wrapped,
         expiry_at, timer_seconds, last_checkin_at, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
     ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareA, pinHashSet,
            // Legacy `duress_slot` int column kept NOT NULL by 0001; populated with dummy
            // (real value lives wrapped). 0002 will drop this column once 0001 is rebased pre-deploy.
-           0, duressBlob,
+           0, duressBlob, payloadKeyWrapped,
            expiry, body.timerSeconds, now, now),
     c.env.DB.prepare(
       `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, enrollment_token_hash, status)
@@ -88,7 +94,7 @@ switches.post('/', async (c) => {
 
   await append(c.env, switchId, 'switch_created');
 
-  const enrollmentUrl = `${c.env.PUBLIC_BASE_URL}/recipient.html?r=${recipientId}&t=${enrollmentToken}`;
+  const enrollmentUrl = `${c.env.PUBLIC_BASE_URL}/enroll.html?r=${recipientId}&t=${enrollmentToken}`;
   await sendEmail(c.env, {
     to: body.recipientEmail,
     subject: 'Someone has named you as a SilentBeat recipient',

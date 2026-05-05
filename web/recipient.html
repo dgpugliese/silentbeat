@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SilentBeat — A message was released to you</title>
+<title>SilentBeat — Decrypt a released message</title>
 <link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -16,69 +16,103 @@
       <span class="name">silentbeat</span>
       <span class="blip" aria-hidden="true"></span>
     </a>
-    <span class="stamp-info">step 1 of 2</span>
+    <span class="stamp-info">released to you</span>
   </header>
   <hr class="hr-sketch" />
 
-  <h1 class="h-hand" style="font-size: 32px; margin: 0;">confirm it's you.</h1>
+  <h1 class="h-hand" style="font-size: 32px; margin: 0;">decrypt the released message.</h1>
   <p class="t-soft" style="font-size: 14px; margin-top: 6px;">
-    Before we hand over the server-held key share, prove you control the inbox Sam picked.
+    Everything happens in your browser. Paste the key and download URL from the release email
+    (or use the link from the email — it should fill these in automatically).
+    Nothing about you reading this is logged on our server.
   </p>
 
-  <section class="wobble verify-card">
-    <div class="t-mono" style="font-size: 12px;">recipient: jane@example.org</div>
-    <div class="pin-input" id="pin-input">
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-      <input class="pin-cell" maxlength="1" inputmode="numeric" />
-    </div>
-    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
-      6-digit code we just emailed to jane@example.org
-    </div>
+  <section class="wobble verify-card" style="padding: 16px;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// payload AES-GCM key (base64, 32 bytes)</div>
+    <input id="key" class="field t-mono" type="text" placeholder="paste from email" style="margin-top: 6px;" />
+
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// encrypted payload URL</div>
+    <input id="url" class="field t-mono" type="text" placeholder="https://…/api/release/.../payload?t=..." style="margin-top: 6px;" />
+
+    <button id="decrypt-btn" class="btn btn-primary" type="button" style="margin-top: 12px;">decrypt &rarr;</button>
+    <div id="status" class="t-mono t-faint" style="font-size: 11px; margin-top: 8px; min-height: 14px;"></div>
   </section>
 
-  <div class="recipient-actions">
-    <button class="btn btn-primary" type="button">verify →</button>
-    <button class="btn" type="button">resend code</button>
-  </div>
-
-  <hr class="hr-sketch" />
-
-  <section class="wobble recipient-context">
-    <div class="t-mono t-soft" style="font-size: 11px; letter-spacing: 0.1em;">// what to expect after you verify</div>
-    <ol style="padding-left: 18px; font-size: 13px; line-height: 1.65; margin-top: 6px;">
-      <li>We hand you our half of the key (server share A).</li>
-      <li>You upload the <span class="t-mono">rescue file</span> Sam asked you to save when he set this up. That file holds your half (share B).</li>
-      <li>Both halves combine in your browser to decrypt the message. We never see the combined key.</li>
-      <li>Save the contents locally. The release link won't work twice on a fresh device.</li>
-    </ol>
+  <section class="wobble verify-card" id="output-card" style="padding: 16px; margin-top: 12px; display: none;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// decrypted message</div>
+    <pre id="output" class="t-mono" style="white-space: pre-wrap; word-break: break-word; margin-top: 8px; padding: 10px; border: 1px dashed var(--ink-faint); border-radius: 6px; max-height: 50vh; overflow: auto;"></pre>
+    <div class="row" style="gap: 8px; margin-top: 10px;">
+      <button id="copy-btn" class="btn btn-sm" type="button">copy</button>
+      <a id="download-link" class="btn btn-sm">download as file</a>
+    </div>
   </section>
 
   <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
-    If this seems wrong — Sam is fine, they meant to defuse, this isn't intended for you — please tell us.
-    We can't undo a release, but we can help you understand what was sent and to whom.
+    If this seems wrong — sender is fine, intended for someone else, you don&rsquo;t recognize them — please tell us.
+    We can&rsquo;t undo a release, but we can help you understand what was sent and to whom.
+    Verify in the <a href="/log.html">public log</a>.
   </p>
 
   <div class="footer">
     <span>silentbeat — philadelphia, pa</span>
-    <span><a href="/log.html">verify in public log</a></span>
+    <span><a href="/log.html">public log</a> · <a href="/threat-model.html">threat model</a></span>
   </div>
 
 </main>
 
+<script src="/app.js"></script>
 <script>
-  const cells = document.querySelectorAll('#pin-input .pin-cell');
-  cells.forEach((c, i) => {
-    c.addEventListener('input', e => {
-      if (!/^[0-9]$/.test(e.target.value)) e.target.value = '';
-      if (e.target.value && i < cells.length - 1) cells[i + 1].focus();
-    });
-    c.addEventListener('keydown', e => {
-      if (e.key === 'Backspace' && !c.value && i > 0) cells[i - 1].focus();
-    });
+  const params = new URLSearchParams(location.search);
+  if (params.get('key')) document.getElementById('key').value = params.get('key');
+  if (params.get('url')) document.getElementById('url').value = params.get('url');
+
+  const status = document.getElementById('status');
+  const output = document.getElementById('output');
+  const outputCard = document.getElementById('output-card');
+  const copyBtn = document.getElementById('copy-btn');
+  const dlLink = document.getElementById('download-link');
+
+  document.getElementById('decrypt-btn').addEventListener('click', async () => {
+    const keyB64 = (document.getElementById('key').value || '').trim();
+    const url = (document.getElementById('url').value || '').trim();
+    if (!keyB64 || !url) { status.textContent = 'paste the key AND the URL.'; return; }
+    status.textContent = 'fetching encrypted payload…';
+    outputCard.style.display = 'none';
+
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('fetch failed: ' + r.status);
+      const blob = new Uint8Array(await r.arrayBuffer());
+      if (blob.length < 28) throw new Error('payload too short');
+
+      const iv = blob.subarray(0, 12);
+      const ct = blob.subarray(12);
+
+      const keyBytes = SB.b64ToBytes(keyB64);
+      if (keyBytes.length !== 32) throw new Error('key must be 32 bytes (got ' + keyBytes.length + ')');
+      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+      status.textContent = 'decrypting in your browser…';
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+      const text = new TextDecoder().decode(pt);
+
+      output.textContent = text;
+      outputCard.style.display = 'block';
+      status.textContent = 'decrypted ' + pt.byteLength + ' bytes locally. nothing was sent back to silentbeat.';
+
+      const dlBlob = new Blob([pt], { type: 'application/octet-stream' });
+      dlLink.href = URL.createObjectURL(dlBlob);
+      dlLink.download = 'silentbeat-message.txt';
+    } catch (e) {
+      status.style.color = 'var(--accent)';
+      status.textContent = 'failed: ' + e.message;
+    }
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(output.textContent).then(
+      () => { copyBtn.textContent = 'copied'; setTimeout(() => copyBtn.textContent = 'copy', 1200); },
+      () => { copyBtn.textContent = 'copy failed'; }
+    );
   });
 </script>
 

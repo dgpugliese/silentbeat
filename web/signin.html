@@ -26,17 +26,18 @@
   <section class="wobble signin-card">
     <div class="signin-method">
       <div class="h-hand" style="font-size: 22px;">passkey</div>
-      <p style="font-size: 13px; margin-top: 4px;">Use the passkey on this device. If you've enrolled more than one, we'll prompt you.</p>
-      <button class="btn btn-primary" type="button">use passkey →</button>
+      <p style="font-size: 13px; margin-top: 4px;">Use the passkey on this device. <span class="t-faint">(WebAuthn UI lands in the next phase — magic link below works now.)</span></p>
+      <button class="btn btn-primary" type="button" disabled style="opacity: 0.4; cursor: not-allowed;">use passkey →</button>
     </div>
 
     <hr class="hr-sketch" style="margin: 18px 0;" />
 
     <div class="signin-method">
       <div class="h-hand" style="font-size: 22px;">magic link</div>
-      <p style="font-size: 13px; margin-top: 4px;">If you've lost your passkey, we'll email a one-time link. You'll still need your defuse PIN to access armed switches.</p>
-      <input class="field" placeholder="email" type="email" style="margin-top: 8px;" />
-      <button class="btn" type="button" style="margin-top: 8px;">email me a link</button>
+      <p style="font-size: 13px; margin-top: 4px;">Sign in with a one-time link. We email it; you click it. Done.</p>
+      <input id="email" class="field" placeholder="email" type="email" style="margin-top: 8px;" />
+      <button id="magic-btn" class="btn" type="button" style="margin-top: 8px;">email me a link</button>
+      <div id="magic-status" class="t-soft" style="font-size: 12px; margin-top: 10px; min-height: 16px;"></div>
     </div>
 
     <hr class="hr-sketch" style="margin: 18px 0;" />
@@ -58,6 +59,35 @@
   </div>
 
 </main>
+
+<script src="/app.js"></script>
+<script>
+  if (SB.isSignedIn()) location.replace('/dashboard.html');
+
+  const emailEl = document.getElementById('email');
+  const btn = document.getElementById('magic-btn');
+  const status = document.getElementById('magic-status');
+
+  async function submit() {
+    const email = (emailEl.value || '').trim();
+    if (!email.includes('@')) { status.textContent = 'enter a valid email.'; return; }
+    btn.disabled = true; status.textContent = 'sending…';
+    try {
+      const r = await SB.api('/api/auth/magic/request', { method: 'POST', body: JSON.stringify({ email }) });
+      if (r.dev_link) {
+        status.innerHTML = 'dev mode — <a href="' + r.dev_link + '">click to sign in</a>';
+      } else {
+        status.textContent = 'check your inbox for the link.';
+      }
+    } catch (e) {
+      status.textContent = 'error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  btn.addEventListener('click', submit);
+  emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+</script>
 
 </body>
 </html>

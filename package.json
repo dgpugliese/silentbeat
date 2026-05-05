@@ -16,6 +16,7 @@
     "wrangler": "^3.95.0"
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
     "@simplewebauthn/server": "^10.0.1",
     "hono": "^4.6.14"
   }

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
 import { hashPin, randomBytes, b64ToBytes, bytesToB64, aeadEncrypt, sha256Hex } from '../lib/crypto';
+import { sendEmail } from '../lib/email';
 import { append } from '../lib/auditlog';
 import { requireUser } from './middleware';
 
@@ -87,8 +88,27 @@ switches.post('/', async (c) => {
 
   await append(c.env, switchId, 'switch_created');
 
-  // TODO Phase 4: send enrollment email containing this URL.
   const enrollmentUrl = `${c.env.PUBLIC_BASE_URL}/recipient.html?r=${recipientId}&t=${enrollmentToken}`;
+  await sendEmail(c.env, {
+    to: body.recipientEmail,
+    subject: 'Someone has named you as a SilentBeat recipient',
+    text: [
+      'A SilentBeat user has set up a switch and named you as the recipient.',
+      'A SilentBeat switch is a "dead-man\'s switch" — if the user stops checking in, an encrypted message is delivered to you.',
+      '',
+      'Before any switch can be armed, you have to enroll. Enrollment generates a keypair in your browser and gives you a rescue file. Save the rescue file — without it the message can never be decrypted.',
+      '',
+      'Enrollment link (single use):',
+      enrollmentUrl,
+      '',
+      'If this seems wrong, ignore this email — the switch will not arm until you enroll.',
+    ].join('\n'),
+    html: `<p>A SilentBeat user named you as the recipient of a dead-man's-switch message.</p>
+<p><a href="${enrollmentUrl}">Enroll now</a></p>
+<p>Enrollment generates a keypair in your browser and gives you a rescue file. Save the rescue file — without it the message can never be decrypted.</p>
+<p>If this seems wrong, ignore this email; the switch will not arm until you enroll.</p>`,
+  });
+
   return c.json({
     switchId,
     recipientId,

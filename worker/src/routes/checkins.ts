@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
 import { verifyPin, randomBytes, sha256Hex, aeadDecrypt } from '../lib/crypto';
 import { append } from '../lib/auditlog';
+import { pinIsLocked, recordPinFailure, clearPinFailures } from '../lib/ratelimit';
 import { requireUser } from './middleware';
 
 export const checkins = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -28,21 +29,25 @@ checkins.post('/:id/checkin', async (c) => {
   }>();
   if (!sw) return c.json({ error: 'switch not armed' }, 400);
 
+  const ipHash = await sha256Hex(c.req.header('cf-connecting-ip') ?? '');
+  const uaHash = await sha256Hex(c.req.header('user-agent') ?? '');
+
+  if (await pinIsLocked(c.env, id, ipHash)) {
+    return c.json({ error: 'too many wrong attempts; try again in an hour' }, 429);
+  }
+
   const set = JSON.parse(sw.pin_hash_set_json) as PinHashSet;
-  // Try both slots in constant order; the matching slot tells us defuse vs duress
-  // by comparing to duress_slot, which we unwrap from a master-key-protected blob.
   const slot0 = await verifyPin(pin, set.hashes[0]!, set.salts[0]!);
   const slot1 = await verifyPin(pin, set.hashes[1]!, set.salts[1]!);
   const matchedSlot = slot0 ? 0 : slot1 ? 1 : -1;
   if (matchedSlot === -1) {
-    // TODO Phase 3: increment failure counter, lock after 5/h
-    return c.json({ error: 'wrong pin' }, 401);
+    const { locked, recent } = await recordPinFailure(c.env, id, ipHash);
+    return c.json({ error: locked ? 'locked' : 'wrong pin', attempts_in_window: recent }, 401);
   }
+  await clearPinFailures(c.env, id, ipHash);
+
   const duressSlotBytes = await aeadDecrypt(c.env, new Uint8Array(sw.duress_slot_wrapped), new TextEncoder().encode(id));
   const isDuress = matchedSlot === duressSlotBytes[0];
-
-  const ipHash = await sha256Hex(c.req.header('cf-connecting-ip') ?? '');
-  const uaHash = await sha256Hex(c.req.header('user-agent') ?? '');
 
   if (isDuress) {
     await c.env.PAYLOADS.delete(sw.payload_r2_key);

@@ -11,7 +11,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "silentbeat"
-database_id = "TBD-RUN-wrangler-d1-create"
+database_id = "0e69b0d2-5783-44c7-8735-4de87df67af4"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
@@ -20,7 +20,7 @@ bucket_name = "silentbeat-payloads"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "TBD-RUN-wrangler-kv-namespace-create"
+id = "5945a80e26a54148af5b40475c201c7c"
 
 [[durable_objects.bindings]]
 name = "SWITCH_TIMER"

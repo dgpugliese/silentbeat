@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat - Brand</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  body { background: #0f1012; padding: 48px; min-height: 100vh; }
+  .sheet { max-width: 1080px; margin: 0 auto; }
+  .grid { display: grid; gap: 18px; }
+  .cell {
+    border: 2.5px solid var(--ink);
+    border-radius: 12px 8px 14px 6px / 6px 14px 8px 12px;
+    padding: 24px;
+    position: relative;
+  }
+  .cell-light { background: #f7f4ec; color: #1a1a1a; }
+  .cell-light .label { color: #5a5a5a; }
+  .cell-light { border-color: #1a1a1a; }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-faint);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .swatch {
+    aspect-ratio: 1;
+    border-radius: 12px 8px 14px 6px / 6px 14px 8px 12px;
+    border: 2px solid var(--ink);
+    padding: 12px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .swatch .name { font-family: 'Caveat', cursive; font-size: 22px; }
+  .swatch .hex { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+  <div style="margin-bottom: 32px;">
+    <div class="h-hand" style="font-size: 48px;">silentbeat - brand sheet</div>
+    <div class="t-soft" style="font-size: 14px; margin-top: 4px;">logo, mark, color, type. drop these anywhere.</div>
+  </div>
+
+  <!-- Primary lockup -->
+  <div class="cell" style="margin-bottom: 18px; padding: 56px;">
+    <div class="label">primary lockup - dark</div>
+    <svg viewBox="0 0 320 96" style="height: 96px;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow-d" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <path d="M6 48 L40 48 L48 28 L56 68 L64 16 L72 80 L80 48 L110 48"
+            stroke="#ece8dc" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="116" cy="48" r="5" fill="#7fd49c" filter="url(#glow-d)" />
+      <circle cx="116" cy="48" r="5" fill="#7fd49c" />
+      <text x="138" y="63" fill="#ece8dc" font-family="Caveat, cursive" font-weight="700" font-size="56" style="letter-spacing: -0.01em;">silentbeat</text>
+    </svg>
+  </div>
+
+  <div class="cell cell-light" style="margin-bottom: 18px; padding: 56px;">
+    <div class="label">primary lockup - light</div>
+    <svg viewBox="0 0 320 96" style="height: 96px;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow-l" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <path d="M6 48 L40 48 L48 28 L56 68 L64 16 L72 80 L80 48 L110 48"
+            stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="116" cy="48" r="5" fill="#3da766" filter="url(#glow-l)" />
+      <circle cx="116" cy="48" r="5" fill="#3da766" />
+      <text x="138" y="63" fill="#1a1a1a" font-family="Caveat, cursive" font-weight="700" font-size="56" style="letter-spacing: -0.01em;">silentbeat</text>
+    </svg>
+  </div>
+
+  <!-- Mark only / favicon -->
+  <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 18px;">
+    <div class="cell">
+      <div class="label">mark - standalone</div>
+      <div style="display:flex;align-items:center;justify-content:center;height:140px;">
+        <img src="brand/mark.svg" alt="" style="height: 96px;" />
+      </div>
+    </div>
+    <div class="cell">
+      <div class="label">favicon - 64</div>
+      <div style="display:flex;align-items:center;justify-content:center;height:140px;">
+        <img src="brand/favicon.svg" alt="" style="height: 96px;" />
+      </div>
+    </div>
+    <div class="cell">
+      <div class="label">favicon - 16 actual size</div>
+      <div style="display:flex;align-items:center;justify-content:center;height:140px;gap:24px;">
+        <img src="brand/favicon.svg" alt="" style="height: 16px; image-rendering: crisp-edges;" />
+        <img src="brand/favicon.svg" alt="" style="height: 32px;" />
+        <img src="brand/favicon.svg" alt="" style="height: 48px;" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Color -->
+  <div class="cell" style="margin-bottom: 18px;">
+    <div class="label">color</div>
+    <div class="grid" style="grid-template-columns: repeat(5, 1fr);">
+      <div class="swatch" style="background: #1c1d20; color: #ece8dc;">
+        <div class="name">paper</div>
+        <div class="hex">#1c1d20</div>
+      </div>
+      <div class="swatch" style="background: #ece8dc; color: #1a1a1a; border-color: #ece8dc;">
+        <div class="name">ink</div>
+        <div class="hex">#ece8dc</div>
+      </div>
+      <div class="swatch" style="background: oklch(0.78 0.18 150); color: #0f1012; border-color: oklch(0.78 0.18 150);">
+        <div class="name">alive</div>
+        <div class="hex">accent-2</div>
+      </div>
+      <div class="swatch" style="background: oklch(0.72 0.18 25); color: #0f1012; border-color: oklch(0.72 0.18 25);">
+        <div class="name">duress</div>
+        <div class="hex">accent</div>
+      </div>
+      <div class="swatch" style="background: oklch(0.74 0.16 250); color: #0f1012; border-color: oklch(0.74 0.16 250);">
+        <div class="name">info</div>
+        <div class="hex">accent-3</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type -->
+  <div class="cell" style="margin-bottom: 18px;">
+    <div class="label">type</div>
+    <div style="margin-top: 10px;">
+      <div class="h-hand" style="font-size: 64px;">If you go silent.</div>
+      <div class="t-mono t-faint" style="font-size: 12px;">caveat 700 - display</div>
+    </div>
+    <hr class="hr-sketch" />
+    <div>
+      <div style="font-family: 'Kalam', cursive; font-size: 22px;">Plain text sets in Kalam. It feels written, not typeset, which matches SilentBeat's "this is a tool, not a product launch" tone.</div>
+      <div class="t-mono t-faint" style="font-size: 12px; margin-top: 6px;">kalam 400 - body</div>
+    </div>
+    <hr class="hr-sketch" />
+    <div>
+      <div class="t-mono" style="font-size: 14px;">timer = 14d 00h - sw#a3f9c2 - cron-sweep - merkle root verified</div>
+      <div class="t-mono t-faint" style="font-size: 12px; margin-top: 6px;">jetbrains mono 600 - data, hashes, timers</div>
+    </div>
+  </div>
+
+  <!-- Don'ts -->
+  <div class="cell" style="margin-bottom: 18px;">
+    <div class="label">notes</div>
+    <ul style="font-size: 14px; line-height: 1.7; padding-left: 20px;">
+      <li>The trace is the brand. Always 5-6 spikes, irregular, rounded caps.</li>
+      <li>The green dot at the end is the "alive" state. It's the only piece that animates.</li>
+      <li>Never tilt or shadow the wordmark. The hand-drawn imperfection is the texture.</li>
+      <li>Favicon: dark rounded square, white trace, green beat. Reads at 16px.</li>
+    </ul>
+  </div>
+
+</div>
+
+</body>
+</html>

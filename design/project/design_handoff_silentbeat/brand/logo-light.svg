@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 96" width="480" height="96">
+  
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b"></feGaussianBlur>
+      <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+    </filter>
+  </defs>
+  <path d="M6 48 L40 48 L48 28 L56 68 L64 16 L72 80 L80 48 L110 48" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle cx="116" cy="48" r="5" fill="#3da766" filter="url(#glow)"></circle>
+  <circle cx="116" cy="48" r="5" fill="#3da766"></circle>
+  <text x="138" y="63" fill="#1a1a1a" font-family="Caveat, &#39;Comic Sans MS&#39;, cursive" font-weight="700" font-size="56" style="letter-spacing: -0.01em;">silentbeat</text>
+</svg>

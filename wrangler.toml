@@ -1,0 +1,38 @@
+name = "silentbeat"
+main = "worker/src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./web"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "silentbeat"
+database_id = "TBD-RUN-wrangler-d1-create"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "PAYLOADS"
+bucket_name = "silentbeat-payloads"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "TBD-RUN-wrangler-kv-namespace-create"
+
+[[durable_objects.bindings]]
+name = "SWITCH_TIMER"
+class_name = "SwitchTimer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SwitchTimer"]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+ENVIRONMENT = "development"
+PUBLIC_BASE_URL = "http://localhost:8787"

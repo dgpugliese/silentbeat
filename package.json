@@ -1,0 +1,21 @@
+{
+  "name": "silentbeat",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply silentbeat --local",
+    "db:migrate:remote": "wrangler d1 migrations apply silentbeat --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.95.0"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  }
+}

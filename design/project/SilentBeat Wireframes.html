@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat -- Wireframes</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  body { background: #0f1012; }
+</style>
+</head>
+<body>
+
+<!-- intro / context shown above the canvas chrome (inside the canvas component? no -- DCSection title used) -->
+
+<div id="root"></div>
+
+<script type="text/babel" src="primitives.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="screens-landing.jsx"></script>
+<script type="text/babel" src="screens-create.jsx"></script>
+<script type="text/babel" src="screens-dashboard.jsx"></script>
+<script type="text/babel" src="screens-checkin.jsx"></script>
+<script type="text/babel" src="screens-log-recipient.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "showAnnotations": true,
+  "darkTone": "slate",
+  "compact": false
+}/*EDITMODE-END*/;
+
+function App() {
+  const t = useTweaks(TWEAK_DEFAULTS);
+
+  // Apply dark tone
+  useEffect(function() {
+    const tones = {
+      slate:  { paper: '#1c1d20', shade: '#26272b', body: '#0f1012' },
+      ink:    { paper: '#16171a', shade: '#1f2024', body: '#08090b' },
+      warm:   { paper: '#1f1c19', shade: '#2a2622', body: '#120f0c' }
+    };
+    const tone = tones[t.darkTone] || tones.slate;
+    document.documentElement.style.setProperty('--paper', tone.paper);
+    document.documentElement.style.setProperty('--paper-shade', tone.shade);
+    document.body.style.background = tone.body;
+  }, [t.darkTone]);
+
+  useEffect(function() {
+    document.documentElement.style.setProperty('--annot-display', t.showAnnotations ? 'block' : 'none');
+    const sheet = document.getElementById('annot-toggle-style');
+    if (sheet) sheet.textContent = t.showAnnotations ? '' : '.annot { display: none !important; }';
+  }, [t.showAnnotations]);
+
+  // Artboard sizing
+  const W = t.compact ? 880 : 1080;
+  const H = t.compact ? 620 : 720;
+
+  return (
+    <React.Fragment>
+      <DesignCanvas
+        title="silentbeat - wireframes"
+        subtitle="dead man's switch -- five screens, three directions each. drag to rearrange. click an artboard to focus."
+        defaultZoom={0.55}
+      >
+        <DCSection id="landing" title="1. landing page" subtitle="honest about limits -- three takes on the trust statement">
+          <DCArtboard id="landing-a" label="A - centered hero - 3-column trust columns" width={W} height={H}><LandingA /></DCArtboard>
+          <DCArtboard id="landing-b" label="B - README-style single column" width={W} height={H}><LandingB /></DCArtboard>
+          <DCArtboard id="landing-c" label="C - architecture diagram + dark" width={W} height={H}><LandingC /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="create" title="2. switch creation" subtitle="payload + recipient + timer + pins -- wizard vs single-page vs terminal">
+          <DCArtboard id="create-a" label="A - stepper wizard" width={W} height={H}><CreateA /></DCArtboard>
+          <DCArtboard id="create-b" label="B - single page with sticky review" width={W} height={H}><CreateB /></DCArtboard>
+          <DCArtboard id="create-c" label="C - terminal-prompted compose" width={W} height={H}><CreateC /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="dashboard" title="3. dashboard" subtitle="prominent countdown + heartbeat -- one switch vs many vs visual trace">
+          <DCArtboard id="dash-a" label="A - single switch - giant timer - dark" width={W} height={H}><DashboardA /></DCArtboard>
+          <DCArtboard id="dash-b" label="B - multiple switches - list with urgency" width={W} height={H}><DashboardB /></DCArtboard>
+          <DCArtboard id="dash-c" label="C - heartbeat trace + countdown" width={W} height={H}><DashboardC /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="checkin" title="4. check in / pin entry" subtitle="defuse and duress on the same input -- three input shapes">
+          <DCArtboard id="checkin-a" label="A - keypad - dark - dots" width={W} height={H}><CheckInA /></DCArtboard>
+          <DCArtboard id="checkin-b" label="B - per-digit boxes + post-checkin reveal" width={W} height={H}><CheckInB /></DCArtboard>
+          <DCArtboard id="checkin-c" label="C - keypad with explicit two-paths sidebar" width={W} height={H}><CheckInC /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="log" title="5. public transparency log" subtitle="merkle-rooted, append-only -- terminal vs table vs live feed">
+          <DCArtboard id="log-a" label="A - terminal-style monospace dump" width={W} height={H}><LogA /></DCArtboard>
+          <DCArtboard id="log-b" label="B - filterable table + stat strip" width={W} height={H}><LogB /></DCArtboard>
+          <DCArtboard id="log-c" label="C - live event feed" width={W} height={H}><LogC /></DCArtboard>
+        </DCSection>
+
+        <DCSection id="recipient" title="6. recipient release" subtitle="what jane sees -- bare-bones vs explanatory vs verify-first">
+          <DCArtboard id="recip-a" label="A - bare bones decrypt page" width={W} height={H}><RecipientA /></DCArtboard>
+          <DCArtboard id="recip-b" label="B - explanatory landing with context" width={W} height={H}><RecipientB /></DCArtboard>
+          <DCArtboard id="recip-c" label="C - verify identity first (2-step)" width={W} height={H}><RecipientC /></DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Wireframe display">
+          <TweakToggle label="Show annotations" value={t.showAnnotations} onChange={function(v) { t.set('showAnnotations', v); }} />
+          <TweakToggle label="Compact artboards" value={t.compact} onChange={function(v) { t.set('compact', v); }} />
+        </TweakSection>
+        <TweakSection title="Background tone">
+          <TweakRadio
+            value={t.darkTone}
+            options={[
+              { value: 'slate', label: 'Slate' },
+              { value: 'ink', label: 'Ink' },
+              { value: 'warm', label: 'Warm' }
+            ]}
+            onChange={function(v) { t.set('darkTone', v); }}
+          />
+        </TweakSection>
+      </TweaksPanel>
+    </React.Fragment>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+<style id="annot-toggle-style"></style>
+
+</body>
+</html>

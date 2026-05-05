@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-app">
+
+  <nav class="appnav">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="appnav-links">
+      <a href="/dashboard.html" class="active">dashboard</a>
+      <a href="/log.html">log</a>
+      <a href="/settings">settings</a>
+    </div>
+  </nav>
+
+  <header class="status-row">
+    <div>
+      <h2 class="h-hand status-title">your switch is armed.</h2>
+      <div class="t-soft status-sub">last heartbeat <span id="last-hb">6 hours</span> ago · recipient jane@&hellip;</div>
+    </div>
+    <div class="alive-pill">
+      <span class="blip" aria-hidden="true"></span>
+      <span class="t-mono">ALIVE</span>
+    </div>
+  </header>
+
+  <section class="wobble countdown-card">
+    <div class="card-label t-mono">TIME UNTIL RELEASE</div>
+    <div class="countdown" id="countdown" data-expires="">
+      <div class="cd-cell"><div class="cd-val">--</div><div class="cd-label t-mono">days</div></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-cell"><div class="cd-val">--</div><div class="cd-label t-mono">hrs</div></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-cell"><div class="cd-val">--</div><div class="cd-label t-mono">min</div></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-cell"><div class="cd-val">--</div><div class="cd-label t-mono">sec</div></div>
+    </div>
+    <div class="t-soft expires-line">expires <span id="expires-at">—</span></div>
+    <div class="card-actions">
+      <a class="btn btn-primary" href="/checkin.html">check in &rarr;</a>
+      <a class="btn" href="/switch/edit">edit switch</a>
+    </div>
+  </section>
+
+  <section class="panel-grid">
+    <div class="wobble panel">
+      <div class="panel-label t-mono">RECENT</div>
+      <div class="t-mono panel-list">
+        <div>06:02 — heartbeat ok</div>
+        <div>00:14 — heartbeat ok</div>
+        <div class="t-soft">−1d  — heartbeat ok</div>
+        <div class="t-soft">−2d  — heartbeat ok</div>
+      </div>
+    </div>
+    <div class="wobble panel">
+      <div class="panel-label t-mono">SAFETY NETS</div>
+      <div class="panel-list">
+        <div><span class="ok">ok</span> daily reminder email</div>
+        <div><span class="ok">ok</span> passkey enrolled</div>
+        <div><span class="ok">ok</span> recovery contact set</div>
+      </div>
+    </div>
+    <div class="wobble panel panel-danger">
+      <div class="panel-label t-mono">DANGER ZONE</div>
+      <div class="danger-actions">
+        <a class="btn btn-tiny btn-danger" href="/switch/disarm">disarm</a>
+        <a class="btn btn-tiny btn-danger" href="/switch/destroy">destroy payload</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const expires = new Date(Date.now() + (13 * 24 + 17) * 3600 * 1000 + 42 * 60 * 1000 + 8 * 1000);
+  document.getElementById('countdown').dataset.expires = expires.toISOString();
+  document.getElementById('expires-at').textContent =
+    expires.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: false }) + ' UTC';
+
+  const cells = document.querySelectorAll('#countdown .cd-val');
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function tick() {
+    const ms = expires - new Date();
+    if (ms <= 0) { cells.forEach(c => c.textContent = '00'); return; }
+    const s = Math.floor(ms / 1000);
+    cells[0].textContent = pad(Math.floor(s / 86400));
+    cells[1].textContent = pad(Math.floor((s % 86400) / 3600));
+    cells[2].textContent = pad(Math.floor((s % 3600) / 60));
+    cells[3].textContent = pad(s % 60);
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+
+</body>
+</html>

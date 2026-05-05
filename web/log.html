@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Public log</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-app">
+
+  <nav class="appnav">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="appnav-links">
+      <a href="/dashboard.html">dashboard</a>
+      <a href="/log.html" class="active">log</a>
+      <a href="/settings">settings</a>
+    </div>
+  </nav>
+
+  <header class="log-header">
+    <div>
+      <h1 class="h-hand" style="font-size: 32px; margin: 0;">public log</h1>
+      <div class="t-soft" style="font-size: 13px; margin-top: 2px;">append-only · merkle-rooted · refreshes every 60s</div>
+    </div>
+    <div class="log-actions">
+      <a class="btn btn-sm" href="/log/verify">verify root ↑</a>
+      <a class="btn btn-sm" href="/log/export.csv">download CSV</a>
+    </div>
+  </header>
+  <svg class="underline-sketch" width="120" height="10" viewBox="0 0 120 10" aria-hidden="true">
+    <path d="M2 6 Q 30 1, 60 5 T 118 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+  </svg>
+
+  <div class="wobble log-table">
+    <div class="t-mono log-rows" id="log-rows">
+      <div class="log-row log-head">
+        <span class="log-time">time</span>
+        <span class="log-event">event</span>
+        <span class="log-hash">switch hash</span>
+        <span class="log-actor">actor</span>
+        <span class="log-seq">seq</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-foot">
+    <span class="t-soft t-mono">root: 4a91b0c2…0e7f — signed by silentbeat-prod</span>
+    <span class="t-soft">we cannot delete entries. only append.</span>
+  </div>
+
+</main>
+
+<script>
+  const rows = [
+    ['2026-05-05 14:02:11Z', 'release',  'a3f9c2…',  'cron-sweep',     '14221'],
+    ['2026-05-05 13:58:04Z', 'defuse',   '7e21b8…',  'user',           '14220'],
+    ['2026-05-05 13:42:30Z', 'create',   '9c01ee…',  'user',           '14219'],
+    ['2026-05-05 12:18:55Z', 'defuse',   'a3f9c2…',  'user',           '14218'],
+    ['2026-05-05 11:04:09Z', 'duress',   '0d44a1…',  'user (purged)',  '14217'],
+    ['2026-05-05 09:30:00Z', 'create',   '5b8377…',  'user',           '14216'],
+    ['2026-05-04 22:11:42Z', 'release',  '22c190…',  'cron-sweep',     '14215'],
+    ['2026-05-04 19:08:57Z', 'defuse',   '7e21b8…',  'user',           '14214'],
+    ['2026-05-04 16:44:02Z', 'create',   'b1290f…',  'user',           '14213'],
+    ['2026-05-04 13:00:18Z', 'defuse',   '88f4a2…',  'user',           '14212'],
+  ];
+  const container = document.getElementById('log-rows');
+  for (const r of rows) {
+    const div = document.createElement('div');
+    div.className = 'log-row log-event-' + r[1];
+    div.innerHTML =
+      '<span class="log-time t-faint">' + r[0] + '</span>' +
+      '<span class="log-event">' + r[1] + '</span>' +
+      '<span class="log-hash">sw#' + r[2] + '</span>' +
+      '<span class="log-actor t-faint">' + r[3] + '</span>' +
+      '<span class="log-seq t-faint">' + r[4] + '</span>';
+    container.appendChild(div);
+  }
+  const more = document.createElement('div');
+  more.className = 'log-row t-faint';
+  more.style.gridColumn = '1 / -1';
+  more.textContent = '… 14,211 more entries';
+  container.appendChild(more);
+</script>
+
+</body>
+</html>

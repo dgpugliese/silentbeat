@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Create account</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page signin-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="t-mono t-faint" style="font-size: 11px;">v0 · public alpha</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 44px; margin: 0;">create an account.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px;">
+    Email-first. We send a one-time link, then you enroll a passkey and save 10 recovery codes
+    before any switch can be armed.
+  </p>
+
+  <section class="wobble signin-card">
+    <div class="signin-method">
+      <div class="h-hand" style="font-size: 22px;">step 1 — your email</div>
+      <p>Use the inbox you'll have for the long term. If you lose access to it and your passkey, you'll need a recovery code to get back in.</p>
+      <input class="field" placeholder="email" type="email" />
+      <button class="btn btn-primary" type="button" style="margin-top: 8px;">send sign-in link →</button>
+    </div>
+
+    <hr class="hr-sketch" style="margin: 18px 0;" />
+
+    <div class="signin-method">
+      <div class="h-hand" style="font-size: 22px;">what happens next</div>
+      <ol style="padding-left: 18px; font-size: 13px; line-height: 1.65; margin-top: 6px;">
+        <li>You click the link from your email. We sign you in.</li>
+        <li>You enroll a <strong>passkey</strong> on this device. We strongly recommend enrolling a second one on another device before you trust SilentBeat with anything irreversible.</li>
+        <li>You download <strong>10 recovery codes</strong>. Each works once. Print them. Don't lose them.</li>
+        <li>You can now create switches.</li>
+      </ol>
+    </div>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    Already have an account? <a href="/signin.html">sign in</a>.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/threat-model.html">threat model</a></span>
+  </div>
+
+</main>
+
+</body>
+</html>

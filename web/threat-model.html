@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Threat model</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page">
+
+  <nav class="topbar">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="nav-links">
+      <a href="/threat-model.html" class="active-link">trust model</a>
+      <a href="/log.html">public log</a>
+      <a href="/signin.html">sign in</a>
+    </div>
+  </nav>
+
+  <h1 class="h-hand" style="font-size: 56px; margin: 24px 0 4px; line-height: 1;">Threat model.</h1>
+  <p class="t-soft" style="font-size: 16px;">What SilentBeat defends against, and what it doesn't.</p>
+
+  <hr class="hr-sketch" />
+
+  <section class="copy-md">
+    <h2 class="h-hand">The trust model in one paragraph.</h2>
+    <p>The payload key is split into two halves. Half lives on our server (share A) and rotates on every check-in. Half is generated in your recipient's browser at enrollment (share B) and never touches our server in plaintext. Neither half decrypts alone. At expiry we email share A to your recipient; they combine it with their share B locally. SilentBeat — the company, the operator, the database — cannot read your message at any point.</p>
+
+    <h2 class="h-hand">Actors and what we defend against.</h2>
+
+    <table class="threat-table">
+      <thead>
+        <tr><th>actor</th><th>defended</th><th>residual risk</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>curious operator (us reading the database)</td>
+          <td>Cannot decrypt your payload (no recipient share). Cannot read your recipient's email plaintext (KMS-wrapped DEK; access is logged). Cannot tell defuse from duress hash.</td>
+          <td>We can observe metadata: switch existence, expiry times, check-in cadence, recipient domain via outbound mail logs.</td>
+        </tr>
+        <tr>
+          <td>compelled operator (subpoena, NSL, court order)</td>
+          <td>Crypto holds: server share alone doesn't decrypt. Audit log is signed; suppression leaves a gap detectable by mirrored copies.</td>
+          <td>A court can compel us to email the recipient with our key share + ciphertext. Combined with a compromised recipient, that decrypts. Sealed gag orders prevent us from publishing certain entries.</td>
+        </tr>
+        <tr>
+          <td>network attacker (TLS in flight)</td>
+          <td>TLS 1.3 + HSTS. Payloads encrypted client-side before upload. Share B encrypted to recipient pubkey.</td>
+          <td>Traffic analysis: timing of check-ins, presence of an account.</td>
+        </tr>
+        <tr>
+          <td>malicious recipient</td>
+          <td>Cannot decrypt without server share A. Cannot force timer expiry.</td>
+          <td>Can wait. Can lie about losing share B to coerce you into early disclosure. Can publish the payload after release — we have no DRM.</td>
+        </tr>
+        <tr>
+          <td>malicious user (using SilentBeat to threaten release)</td>
+          <td>Recipient knows they were enrolled. Recipient can refuse / discard share B = preempt release.</td>
+          <td>We cannot prevent this product being used as a coercion tool. ToS forbids it. Abuse reports terminate accounts.</td>
+        </tr>
+        <tr>
+          <td>coercer with the user (forcing defuse)</td>
+          <td>Duress PIN purges the payload + sends bare-keys email so recipient sees something happened.</td>
+          <td>A sophisticated coercer who knows duress PINs exist will demand evidence of which PIN was entered. Duress only protects against unsophisticated coercion.</td>
+        </tr>
+        <tr>
+          <td>lost device / lost PIN</td>
+          <td>72h / 24h / 1h escalating warnings. Two-window grace. Recovery codes at signup. Magic-link + PIN fallback for lost passkey.</td>
+          <td>Genuine memory loss or hospitalization mid-window will fire the switch. By design — that's what the switch is for.</td>
+        </tr>
+        <tr>
+          <td>recipient lost share B</td>
+          <td>None — payload is unrecoverable.</td>
+          <td>This is the price of true split-key. Documented prominently at recipient enrollment.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="h-hand">What happens if Cloudflare goes down.</h2>
+    <p>SilentBeat runs entirely on Cloudflare — Workers, Durable Objects, D1, R2. A region-wide Cloudflare outage at expiry time means your timer fires late or not at all. We do not run a hot standby on a second cloud. The Durable Object holding your timer's <span class="t-mono">setAlarm()</span> resumes at the next available moment; the cron sweeper catches anything missed within ~5 minutes of recovery. For most use cases this is fine. For a use case where minute-precision matters at the edge of a multi-hour outage, SilentBeat is the wrong tool.</p>
+
+    <h2 class="h-hand">What happens if we're compelled.</h2>
+    <p>SilentBeat is operated by a Pennsylvania entity in Philadelphia, USA, and is subject to US federal and state law. We will respond to lawful subpoenas and warrants. If we are compelled to disclose the encrypted blob and our key share for a specific switch, we will do so — and disclose the request publicly to the extent the order permits. National Security Letters with gag orders are the exception: we cannot publish those individually, but we maintain a warrant canary on the public site that is removed if we receive one. We publish a quarterly transparency report aggregating all legal requests received and complied with.</p>
+
+    <h2 class="h-hand">What you are trusting us with.</h2>
+    <p>That we ran the code we say we ran. The crypto only protects you if our server actually behaves the way this document describes. To make that auditable: every switch creation, check-in, defuse, release, and duress event is written to a signed, append-only public log. The log entries are signed with an Ed25519 key whose public counterpart is published. Anyone can mirror the log and verify the chain. If we omit entries, mirrors will detect the gap.</p>
+
+    <p>This is not the same as cryptographic certainty. A determined operator could rewrite history before signatures were widely mirrored. To narrow that window, we publish a fresh signed checkpoint of the log root every minute, and we will publish the root to a public timestamping service (planned). Read the <a href="/log.html">public log</a> and form your own opinion.</p>
+
+    <hr class="hr-sketch" />
+
+    <p class="t-soft" style="font-size: 13px;">
+      Last revised: 2026-05-05. The threat model is a living document. Material changes are committed
+      to the public log under <span class="t-mono">policy_revision</span> events, with a diff link.
+    </p>
+  </section>
+
+  <div class="actions" style="justify-content: flex-start;">
+    <a class="btn btn-primary" href="/create.html">create a switch →</a>
+    <a class="btn" href="/">back to home</a>
+  </div>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a></span>
+  </div>
+
+</main>
+
+</body>
+</html>

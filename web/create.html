@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — New switch</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-app">
+
+  <nav class="appnav">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="appnav-links">
+      <a href="/dashboard.html" class="active">dashboard</a>
+      <a href="/log.html">log</a>
+      <a href="/settings">settings</a>
+    </div>
+  </nav>
+
+  <header class="create-header">
+    <h1 class="h-hand" style="font-size: 36px; margin: 0;">new switch</h1>
+    <span class="t-mono t-faint" style="font-size: 12px;">step <span id="step-num">1</span> of 6</span>
+  </header>
+  <svg class="underline-sketch" width="140" height="10" viewBox="0 0 140 10" aria-hidden="true">
+    <path d="M2 6 Q 35 1, 70 5 T 138 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+  </svg>
+
+  <div class="stepper" id="stepper">
+    <div class="stepper-step active" data-step="1"><span class="wobble-sm">payload</span></div>
+    <div class="stepper-line"></div>
+    <div class="stepper-step" data-step="2"><span class="wobble-sm">recipient</span></div>
+    <div class="stepper-line"></div>
+    <div class="stepper-step" data-step="3"><span class="wobble-sm">timer</span></div>
+    <div class="stepper-line"></div>
+    <div class="stepper-step" data-step="4"><span class="wobble-sm">pins</span></div>
+    <div class="stepper-line"></div>
+    <div class="stepper-step" data-step="5"><span class="wobble-sm">review</span></div>
+    <div class="stepper-line"></div>
+    <div class="stepper-step" data-step="6"><span class="wobble-sm">test fire</span></div>
+  </div>
+
+  <div class="create-grid">
+    <div class="create-main">
+
+      <section class="wobble form-card" data-step-panel="1">
+        <div class="t-mono t-faint form-tag">// payload</div>
+        <div class="form-q">What should we deliver?</div>
+        <div class="chip-row">
+          <button class="chip wobble-sm chip-active" type="button">text message</button>
+          <button class="chip wobble-sm" type="button">file (max 50mb)</button>
+          <button class="chip wobble-sm" type="button">both</button>
+        </div>
+        <textarea class="dashed-input" rows="5" placeholder='"If you&apos;re reading this, I&apos;ve gone silent for 14 days. Look in the safe deposit box at..."'></textarea>
+        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 8px;">↑ encrypted in your browser before it leaves</div>
+      </section>
+
+      <section class="wobble form-card" data-step-panel="2">
+        <div class="t-mono t-faint form-tag">// recipient</div>
+        <div class="form-q">Who receives it?</div>
+        <div class="row-2">
+          <input class="field" placeholder="name (optional)" />
+          <input class="field" placeholder="email" type="email" />
+        </div>
+        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
+          We email this person a one-time enrollment link. They generate a keypair in their browser
+          and download a rescue file. Without their half, your message stays sealed forever — even
+          to us.
+        </div>
+      </section>
+
+      <section class="wobble form-card" data-step-panel="3">
+        <div class="t-mono t-faint form-tag">// timer</div>
+        <div class="form-q">How long between check-ins?</div>
+        <div class="chip-row">
+          <button class="chip wobble-sm" type="button">24h</button>
+          <button class="chip wobble-sm" type="button">3d</button>
+          <button class="chip wobble-sm" type="button">7d</button>
+          <button class="chip wobble-sm chip-active" type="button">14d</button>
+          <button class="chip wobble-sm" type="button">30d</button>
+          <button class="chip wobble-sm" type="button">90d</button>
+          <button class="chip wobble-sm" type="button">1y</button>
+          <button class="chip wobble-sm" type="button">custom</button>
+        </div>
+        <div class="row-2" style="margin-top: 14px;">
+          <div>
+            <div style="font-size: 13px; margin-bottom: 4px;">warning emails before expiry</div>
+            <div class="chip-row">
+              <button class="chip wobble-sm chip-active" type="button">72h · 24h · 1h</button>
+              <button class="chip wobble-sm" type="button">none</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 13px; margin-bottom: 4px;">grace period</div>
+            <div class="chip-row">
+              <button class="chip wobble-sm chip-active" type="button">require 2 missed windows</button>
+              <button class="chip wobble-sm" type="button">fire on first miss</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="wobble form-card" data-step-panel="4">
+        <div class="t-mono t-faint form-tag">// pins</div>
+        <div class="form-q">Two 6-digit PINs. Same length, different effect.</div>
+        <div class="row-2">
+          <div>
+            <div style="font-size: 13px; margin-bottom: 4px;">defuse PIN — resets timer</div>
+            <input class="field t-mono" type="password" maxlength="6" placeholder="******" />
+          </div>
+          <div>
+            <div style="font-size: 13px; margin-bottom: 4px; color: var(--accent);">duress PIN — releases &amp; purges</div>
+            <input class="field t-mono pin-duress" type="password" maxlength="6" placeholder="******" />
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px;" class="t-soft">
+          Same length, different effect. Only you should know which is which. PINs are hashed in your browser; the server stores both hashes in randomized order so a database leak can't tell them apart.
+        </div>
+      </section>
+
+      <section class="wobble form-card" data-step-panel="5">
+        <div class="t-mono t-faint form-tag">// review</div>
+        <div class="form-q">Last look before we send the recipient an enrollment email.</div>
+        <div class="t-mono review-list">
+          <div>→ payload: <span class="t-faint">text · 312 bytes</span></div>
+          <div>→ recipient: <span class="t-faint">jane@example.org</span></div>
+          <div>→ timer: <span class="t-faint">14 days, warnings at 72h/24h/1h</span></div>
+          <div>→ defuse PIN: <span class="t-faint">set</span></div>
+          <div>→ duress PIN: <span class="t-faint">set</span></div>
+          <div>→ on duress: <span class="t-faint">release + purge</span></div>
+          <div>→ status after submit: <span class="t-faint">pending — awaiting recipient enrollment</span></div>
+        </div>
+      </section>
+
+      <section class="wobble form-card" data-step-panel="6">
+        <div class="t-mono t-faint form-tag">// test fire (mandatory)</div>
+        <div class="form-q">Verify the whole chain works before you trust it with real content.</div>
+        <p style="font-size: 14px; margin-top: 8px;">
+          We'll send Jane a <strong>test message</strong> ("This is a SilentBeat test from David. No action needed.") encrypted under a throwaway key. She walks through the decrypt flow with her rescue file. Once she confirms it worked, your real switch goes <span class="t-mono">ARMED</span>.
+        </p>
+        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
+          status: <span style="color: var(--accent-3);">waiting on jane@example.org · sent 4m ago</span>
+        </div>
+      </section>
+
+    </div>
+
+    <aside class="create-side">
+      <div class="wobble side-card">
+        <div class="h-hand" style="font-size: 22px;">preview</div>
+        <hr class="hr-sketch" style="margin: 10px 0;" />
+        <div class="t-mono" style="font-size: 12px; line-height: 1.7;">
+          <div>→ recipient: <span class="t-faint">jane@…</span></div>
+          <div>→ timer: <span class="t-faint">14 days</span></div>
+          <div>→ defuse PIN: <span class="t-faint">******</span></div>
+          <div>→ duress PIN: <span class="t-faint">******</span></div>
+          <div>→ on expiry: <span class="t-faint">email release</span></div>
+          <div>→ public log: <span class="t-faint">create event will be written</span></div>
+        </div>
+        <hr class="hr-sketch" style="margin: 10px 0;" />
+        <div style="font-size: 12px;" class="t-soft">
+          You can edit any of this until you arm the switch.
+        </div>
+      </div>
+      <div class="sticker sticker-warn">tip: pick a recipient who has a stable email and can hold onto the rescue file we send them.</div>
+    </aside>
+  </div>
+
+  <div class="create-actions">
+    <button class="btn" id="back-btn" type="button">back</button>
+    <button class="btn btn-primary" id="next-btn" type="button">continue →</button>
+  </div>
+
+</main>
+
+<script>
+  let step = 1;
+  const total = 6;
+  const numEl = document.getElementById('step-num');
+  const panels = document.querySelectorAll('[data-step-panel]');
+  const stepperSteps = document.querySelectorAll('.stepper-step');
+  const backBtn = document.getElementById('back-btn');
+  const nextBtn = document.getElementById('next-btn');
+
+  function render() {
+    numEl.textContent = step;
+    panels.forEach(p => p.classList.toggle('active', Number(p.dataset.stepPanel) === step));
+    stepperSteps.forEach((s, i) => {
+      s.classList.toggle('active', i + 1 === step);
+      s.classList.toggle('done', i + 1 < step);
+    });
+    backBtn.disabled = step === 1;
+    nextBtn.textContent = step === total ? 'arm switch ↗' : step === total - 1 ? 'send enrollment →' : 'continue →';
+  }
+  backBtn.addEventListener('click', () => { if (step > 1) { step--; render(); } });
+  nextBtn.addEventListener('click', () => { if (step < total) { step++; render(); } });
+  render();
+</script>
+
+</body>
+</html>

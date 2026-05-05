@@ -56,7 +56,7 @@
           <button class="chip wobble-sm" type="button">file (max 50mb)</button>
           <button class="chip wobble-sm" type="button">both</button>
         </div>
-        <textarea class="dashed-input" rows="5" placeholder='"If you&apos;re reading this, I&apos;ve gone silent for 14 days. Look in the safe deposit box at..."'></textarea>
+        <textarea id="payload-text" class="dashed-input" rows="5" placeholder='"If you&apos;re reading this, I&apos;ve gone silent for 14 days. Look in the safe deposit box at..."'></textarea>
         <div class="t-mono t-faint" style="font-size: 11px; margin-top: 8px;">↑ encrypted in your browser before it leaves</div>
       </section>
 
@@ -64,8 +64,8 @@
         <div class="t-mono t-faint form-tag">// recipient</div>
         <div class="form-q">Who receives it?</div>
         <div class="row-2">
-          <input class="field" placeholder="name (optional)" />
-          <input class="field" placeholder="email" type="email" />
+          <input id="recipient-name" class="field" placeholder="name (optional)" />
+          <input id="recipient-email" class="field" placeholder="email" type="email" />
         </div>
         <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
           We email this person a one-time enrollment link. They generate a keypair in their browser
@@ -77,15 +77,14 @@
       <section class="wobble form-card" data-step-panel="3">
         <div class="t-mono t-faint form-tag">// timer</div>
         <div class="form-q">How long between check-ins?</div>
-        <div class="chip-row">
-          <button class="chip wobble-sm" type="button">24h</button>
-          <button class="chip wobble-sm" type="button">3d</button>
-          <button class="chip wobble-sm" type="button">7d</button>
-          <button class="chip wobble-sm chip-active" type="button">14d</button>
-          <button class="chip wobble-sm" type="button">30d</button>
-          <button class="chip wobble-sm" type="button">90d</button>
-          <button class="chip wobble-sm" type="button">1y</button>
-          <button class="chip wobble-sm" type="button">custom</button>
+        <div class="chip-row" id="timer-chips">
+          <button class="chip wobble-sm" type="button" data-seconds="86400">24h</button>
+          <button class="chip wobble-sm" type="button" data-seconds="259200">3d</button>
+          <button class="chip wobble-sm" type="button" data-seconds="604800">7d</button>
+          <button class="chip wobble-sm chip-active" type="button" data-seconds="1209600">14d</button>
+          <button class="chip wobble-sm" type="button" data-seconds="2592000">30d</button>
+          <button class="chip wobble-sm" type="button" data-seconds="7776000">90d</button>
+          <button class="chip wobble-sm" type="button" data-seconds="31536000">1y</button>
         </div>
         <div class="row-2" style="margin-top: 14px;">
           <div>
@@ -111,11 +110,11 @@
         <div class="row-2">
           <div>
             <div style="font-size: 13px; margin-bottom: 4px;">defuse PIN — resets timer</div>
-            <input class="field t-mono" type="password" maxlength="6" placeholder="******" />
+            <input id="defuse-pin" class="field t-mono" type="password" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="******" />
           </div>
           <div>
             <div style="font-size: 13px; margin-bottom: 4px; color: var(--accent);">duress PIN — releases &amp; purges</div>
-            <input class="field t-mono pin-duress" type="password" maxlength="6" placeholder="******" />
+            <input id="duress-pin" class="field t-mono pin-duress" type="password" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="******" />
           </div>
         </div>
         <div style="margin-top: 10px; font-size: 12px;" class="t-soft">
@@ -126,26 +125,13 @@
       <section class="wobble form-card" data-step-panel="5">
         <div class="t-mono t-faint form-tag">// review</div>
         <div class="form-q">Last look before we send the recipient an enrollment email.</div>
-        <div class="t-mono review-list">
-          <div>→ payload: <span class="t-faint">text · 312 bytes</span></div>
-          <div>→ recipient: <span class="t-faint">jane@example.org</span></div>
-          <div>→ timer: <span class="t-faint">14 days, warnings at 72h/24h/1h</span></div>
-          <div>→ defuse PIN: <span class="t-faint">set</span></div>
-          <div>→ duress PIN: <span class="t-faint">set</span></div>
-          <div>→ on duress: <span class="t-faint">release + purge</span></div>
-          <div>→ status after submit: <span class="t-faint">pending — awaiting recipient enrollment</span></div>
-        </div>
+        <div class="t-mono review-list" id="review-list"></div>
       </section>
 
       <section class="wobble form-card" data-step-panel="6">
-        <div class="t-mono t-faint form-tag">// test fire (mandatory)</div>
-        <div class="form-q">Verify the whole chain works before you trust it with real content.</div>
-        <p style="font-size: 14px; margin-top: 8px;">
-          We'll send Jane a <strong>test message</strong> ("This is a SilentBeat test from David. No action needed.") encrypted under a throwaway key. She walks through the decrypt flow with her rescue file. Once she confirms it worked, your real switch goes <span class="t-mono">ARMED</span>.
-        </p>
-        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
-          status: <span style="color: var(--accent-3);">waiting on jane@example.org · sent 4m ago</span>
-        </div>
+        <div class="t-mono t-faint form-tag">// arm</div>
+        <div class="form-q">Submit creates the switch and emails an enrollment link to your recipient.</div>
+        <div id="submit-status" class="t-mono" style="font-size: 13px; line-height: 1.85; margin-top: 12px;"></div>
       </section>
 
     </div>
@@ -178,7 +164,10 @@
 
 </main>
 
+<script src="/app.js"></script>
 <script>
+  SB.requireAuth();
+
   let step = 1;
   const total = 6;
   const numEl = document.getElementById('step-num');
@@ -186,6 +175,54 @@
   const stepperSteps = document.querySelectorAll('.stepper-step');
   const backBtn = document.getElementById('back-btn');
   const nextBtn = document.getElementById('next-btn');
+
+  // Chip groups: clicking toggles active among siblings
+  document.querySelectorAll('.chip-row').forEach(row => {
+    row.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+      row.querySelectorAll('.chip').forEach(x => x.classList.remove('chip-active'));
+      c.classList.add('chip-active');
+    }));
+  });
+
+  function getTimer() {
+    const a = document.querySelector('#timer-chips .chip-active');
+    return a ? Number(a.dataset.seconds) : 1209600;
+  }
+  function getState() {
+    return {
+      payload: document.getElementById('payload-text').value || '',
+      recipientName: document.getElementById('recipient-name').value || '',
+      recipientEmail: (document.getElementById('recipient-email').value || '').trim(),
+      timerSeconds: getTimer(),
+      defusePin: document.getElementById('defuse-pin').value || '',
+      duressPin: document.getElementById('duress-pin').value || '',
+    };
+  }
+
+  function validateStep(n) {
+    const s = getState();
+    if (n >= 1 && !s.payload.trim()) return 'enter a message to encrypt.';
+    if (n >= 2 && !s.recipientEmail.includes('@')) return 'enter a valid recipient email.';
+    if (n >= 4) {
+      if (!/^\d{6}$/.test(s.defusePin)) return 'defuse PIN must be 6 digits.';
+      if (!/^\d{6}$/.test(s.duressPin)) return 'duress PIN must be 6 digits.';
+      if (s.defusePin === s.duressPin) return 'defuse and duress PINs must differ.';
+    }
+    return null;
+  }
+
+  function renderReview() {
+    const s = getState();
+    const days = Math.round(s.timerSeconds / 86400);
+    document.getElementById('review-list').innerHTML = [
+      '→ payload: <span class="t-faint">text · ' + new Blob([s.payload]).size + ' bytes</span>',
+      '→ recipient: <span class="t-faint">' + (s.recipientEmail || '—') + '</span>',
+      '→ timer: <span class="t-faint">' + days + ' days</span>',
+      '→ defuse PIN: <span class="t-faint">' + (s.defusePin ? 'set' : '—') + '</span>',
+      '→ duress PIN: <span class="t-faint">' + (s.duressPin ? 'set' : '—') + '</span>',
+      '→ status after submit: <span class="t-faint">pending — awaiting recipient enrollment</span>',
+    ].map(line => '<div>' + line + '</div>').join('');
+  }
 
   function render() {
     numEl.textContent = step;
@@ -195,10 +232,53 @@
       s.classList.toggle('done', i + 1 < step);
     });
     backBtn.disabled = step === 1;
-    nextBtn.textContent = step === total ? 'arm switch ↗' : step === total - 1 ? 'send enrollment →' : 'continue →';
+    nextBtn.textContent = step === total ? 'arm switch ↗' : 'continue →';
+    if (step === 5) renderReview();
   }
+
+  async function submit() {
+    const v = validateStep(5);
+    if (v) { alert(v); return; }
+    nextBtn.disabled = true;
+    const s = getState();
+    const status = document.getElementById('submit-status');
+    status.innerHTML = '<div class="t-soft">→ encrypting payload in your browser…</div>';
+    try {
+      const enc = new TextEncoder();
+      const { blob, K } = await SB.encryptPayload(enc.encode(s.payload));
+      status.innerHTML += '<div class="t-soft">→ uploading…</div>';
+      const r = await SB.api('/api/switches', {
+        method: 'POST',
+        body: JSON.stringify({
+          payloadCiphertextB64: SB.bytesToB64(blob),
+          payloadSizeBytes: blob.length,
+          payloadKeyB64: SB.bytesToB64(K),
+          recipientEmail: s.recipientEmail,
+          timerSeconds: s.timerSeconds,
+          defusePin: s.defusePin,
+          duressPin: s.duressPin,
+        }),
+      });
+      status.innerHTML +=
+        '<div style="color: var(--accent-2)">→ switch created · id ' + r.switchId + '</div>' +
+        '<div class="t-soft">→ enrollment email sent to ' + s.recipientEmail + '</div>';
+      if (r.dev_enrollment_url) {
+        status.innerHTML += '<div style="margin-top:8px"><a href="' + r.dev_enrollment_url + '">[dev] enrollment link</a></div>';
+      }
+      status.innerHTML += '<div style="margin-top:8px"><a href="/dashboard.html">→ go to dashboard</a></div>';
+    } catch (e) {
+      status.innerHTML = '<div style="color: var(--accent)">error: ' + e.message + '</div>';
+      nextBtn.disabled = false;
+    }
+  }
+
   backBtn.addEventListener('click', () => { if (step > 1) { step--; render(); } });
-  nextBtn.addEventListener('click', () => { if (step < total) { step++; render(); } });
+  nextBtn.addEventListener('click', () => {
+    if (step === total) return submit();
+    const v = validateStep(step);
+    if (v) { alert(v); return; }
+    if (step < total) { step++; render(); }
+  });
   render();
 </script>
 

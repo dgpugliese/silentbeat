@@ -54,14 +54,15 @@ export class SwitchTimer {
 
   async release(switchId: string): Promise<{ released: boolean; reason?: string }> {
     const sw = await this.env.DB.prepare(
-      `SELECT s.id, s.status, s.payload_r2_key, s.share_a,
+      `SELECT s.id, s.status, s.payload_r2_key, s.share_a, s.payload_key_wrapped,
               r.email_ct, r.share_b_to_recipient
        FROM switches s
        LEFT JOIN recipients r ON r.switch_id = s.id
        WHERE s.id = ?`,
     ).bind(switchId).first<{
       id: string; status: string; payload_r2_key: string;
-      share_a: ArrayBuffer; email_ct: ArrayBuffer | null; share_b_to_recipient: string | null;
+      share_a: ArrayBuffer; payload_key_wrapped: ArrayBuffer | null;
+      email_ct: ArrayBuffer | null; share_b_to_recipient: string | null;
     }>();
 
     if (!sw) return { released: false, reason: 'switch_not_found' };
@@ -85,6 +86,9 @@ export class SwitchTimer {
       await aeadDecrypt(this.env, new Uint8Array(sw.email_ct), enc.encode(switchId)),
     );
     const shareAB64 = bytesToB64(new Uint8Array(sw.share_a));
+    const payloadKeyB64 = sw.payload_key_wrapped
+      ? bytesToB64(await aeadDecrypt(this.env, new Uint8Array(sw.payload_key_wrapped), enc.encode(switchId)))
+      : '(unavailable — switch predates payload-key wrapping)';
 
     // One-time download token, 7-day TTL
     const tokenRaw = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
@@ -101,21 +105,23 @@ export class SwitchTimer {
       `The user who set this up did not check in before their timer expired.`,
       'Their wishes were that you receive this message in that case.',
       '',
-      'Three things you need:',
+      'Decrypt steps:',
       '',
-      '1. SERVER KEY SHARE (our half):',
-      shareAB64,
+      '1. PAYLOAD AES-GCM KEY (32 bytes, base64) — keep this local:',
+      payloadKeyB64,
       '',
-      '2. ENCRYPTED RECIPIENT KEY SHARE (your half, encrypted to your enrollment pubkey):',
-      sw.share_b_to_recipient,
-      '',
-      '3. ENCRYPTED PAYLOAD (download once, save locally):',
+      '2. ENCRYPTED PAYLOAD — download once, save locally:',
       downloadUrl,
       '',
-      `Decrypt locally using your rescue file from enrollment. We never see the combined key.`,
+      '3. Decrypt locally with the recipient.html → "decrypt" tool, or any AES-GCM-256',
+      '   tool that reads iv (first 12 bytes) || ciphertext || tag (last 16 bytes).',
       '',
       `Verify this release in the public log: ${verifyUrl}`,
       `Switch ID for cross-reference: ${switchId}`,
+      '',
+      '— diagnostic fields below; ignore unless asked —',
+      `server share A (b64): ${shareAB64}`,
+      `recipient share B (encrypted to enrollment pubkey): ${sw.share_b_to_recipient ?? '(none)'}`,
     ].join('\n');
 
     const html = `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;

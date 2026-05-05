@@ -15,6 +15,13 @@ export interface Env {
   ASSETS: Fetcher;
   ENVIRONMENT: string;
   PUBLIC_BASE_URL: string;
+  RP_ID: string;
+  RP_NAME: string;
+  RP_ORIGIN: string;
+  // Secrets — provisioned via `wrangler secret put` for prod; .dev.vars for dev.
+  MASTER_KEY: string;
+  LOG_SIGNING_KEY: string;
+  LOG_PUBLIC_KEY: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();

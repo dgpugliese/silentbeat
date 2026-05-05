@@ -7,11 +7,12 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./web"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+html_handling = "none"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "silentbeat"
-database_id = "TBD-RUN-wrangler-d1-create"
+database_id = "0e69b0d2-5783-44c7-8735-4de87df67af4"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
@@ -20,7 +21,7 @@ bucket_name = "silentbeat-payloads"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "TBD-RUN-wrangler-kv-namespace-create"
+id = "5945a80e26a54148af5b40475c201c7c"
 
 [[durable_objects.bindings]]
 name = "SWITCH_TIMER"
@@ -36,3 +37,10 @@ crons = ["*/5 * * * *"]
 [vars]
 ENVIRONMENT = "development"
 PUBLIC_BASE_URL = "http://localhost:8787"
+RP_ID = "localhost"
+RP_NAME = "SilentBeat"
+RP_ORIGIN = "http://localhost:8787"
+# Secrets (set with `wrangler secret put NAME`):
+#   MASTER_KEY        — 32 bytes b64, AES-GCM master for KMS-style DEK wrapping
+#   LOG_SIGNING_KEY   — Ed25519 PKCS8 b64, signs every audit_log entry
+#   LOG_PUBLIC_KEY    — Ed25519 SPKI b64, published so anyone can verify the chain

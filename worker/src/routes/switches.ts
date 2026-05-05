@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
-import { hashPin, randomBytes, b64ToBytes } from '../lib/crypto';
+import { hashPin, randomBytes, b64ToBytes, bytesToB64, aeadEncrypt, sha256Hex } from '../lib/crypto';
 import { append } from '../lib/auditlog';
 import { requireUser } from './middleware';
 
@@ -43,6 +43,12 @@ switches.post('/', async (c) => {
   const payloadKey = `payloads/${switchId}`;
   const shareA = randomBytes(32);
 
+  // One-time enrollment token: plaintext returned to the user (and emailed to
+  // the recipient in Phase 4); only the hash is stored. Without this token the
+  // /enroll endpoint refuses, so a recipientId leak alone can't hijack enrollment.
+  const enrollmentToken = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+  const enrollmentTokenHash = await sha256Hex(enrollmentToken);
+
   const [defuse, duress] = await Promise.all([hashPin(body.defusePin), hashPin(body.duressPin)]);
   const flip = Math.random() < 0.5;
   const pair = flip ? [duress, defuse] : [defuse, duress];
@@ -51,10 +57,10 @@ switches.post('/', async (c) => {
 
   await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
 
-  // TODO Phase 3: encrypt recipient email with KMS-wrapped DEK
-  const emailIv = randomBytes(12);
-  const emailCt = new TextEncoder().encode(body.recipientEmail); // placeholder
-  const emailDekWrapped = randomBytes(48); // placeholder
+  // Encrypt recipient email under the master key; bind to switch ID via AAD.
+  const emailBlob = await aeadEncrypt(c.env, new TextEncoder().encode(body.recipientEmail), new TextEncoder().encode(switchId));
+  // Wrap the duress-slot bit so a DB-only dump can't tell defuse from duress.
+  const duressBlob = await aeadEncrypt(c.env, new Uint8Array([duressSlot]), new TextEncoder().encode(switchId));
 
   const now = Date.now();
   const expiry = now + body.timerSeconds * 1000;
@@ -62,21 +68,34 @@ switches.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO switches
-       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot,
+       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped,
         expiry_at, timer_seconds, last_checkin_at, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareA, pinHashSet, duressSlot,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareA, pinHashSet,
+           // Legacy `duress_slot` int column kept NOT NULL by 0001; populated with dummy
+           // (real value lives wrapped). 0002 will drop this column once 0001 is rebased pre-deploy.
+           0, duressBlob,
            expiry, body.timerSeconds, now, now),
     c.env.DB.prepare(
-      `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-    ).bind(recipientId, switchId, emailCt, emailIv, emailDekWrapped),
+      `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, enrollment_token_hash, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+    ).bind(recipientId, switchId, emailBlob,
+           new Uint8Array(0), // iv inlined into emailBlob; column kept for schema compat
+           new Uint8Array(0),
+           enrollmentTokenHash),
   ]);
 
   await append(c.env, switchId, 'switch_created');
 
-  // TODO: send recipient enrollment email
-  return c.json({ switchId, recipientId, status: 'pending', enrollmentRequired: true });
+  // TODO Phase 4: send enrollment email containing this URL.
+  const enrollmentUrl = `${c.env.PUBLIC_BASE_URL}/recipient.html?r=${recipientId}&t=${enrollmentToken}`;
+  return c.json({
+    switchId,
+    recipientId,
+    status: 'pending',
+    enrollmentRequired: true,
+    ...(c.env.ENVIRONMENT === 'development' ? { dev_enrollment_url: enrollmentUrl } : {}),
+  });
 });
 
 switches.get('/:id', async (c) => {

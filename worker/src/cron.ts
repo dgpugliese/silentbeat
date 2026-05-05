@@ -8,6 +8,9 @@ export async function sweepExpired(env: Env): Promise<void> {
 
   for (const row of results ?? []) {
     const stub = env.SWITCH_TIMER.get(env.SWITCH_TIMER.idFromName(row.id));
-    await stub.fetch('https://do/release', { method: 'POST' }).catch(() => {});
+    await stub.fetch('https://do/release', {
+      method: 'POST',
+      body: JSON.stringify({ switchId: row.id }),
+    }).catch(() => {});
   }
 }

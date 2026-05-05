@@ -9,6 +9,7 @@ import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
 import { sha256Hex, randomBytes, bytesToB64 } from '../lib/crypto';
 import { createSession, destroySession, readBearer, readSession } from '../lib/session';
+import { sendEmail } from '../lib/email';
 import { requireUser } from './middleware';
 
 export const auth = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -40,8 +41,13 @@ auth.post('/magic/request', async (c) => {
     `INSERT INTO magic_tokens (id, user_id, token_hash, purpose, expires_at) VALUES (?, ?, ?, 'login', ?)`,
   ).bind(ulid(), user.id, tokenHash, expires).run();
 
-  // TODO Phase 4: send email via Resend/Postmark.
   const link = `${c.env.PUBLIC_BASE_URL}/api/auth/magic/consume?t=${tokenRaw}`;
+  await sendEmail(c.env, {
+    to: email,
+    subject: 'Your SilentBeat sign-in link',
+    text: `Click to sign in to SilentBeat:\n\n${link}\n\nLink expires in 15 minutes. If you did not request this, ignore this email.`,
+    html: `<p>Click to sign in to SilentBeat:</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes. If you did not request this, ignore this email.</p>`,
+  });
   if (c.env.ENVIRONMENT === 'development') return c.json({ ok: true, dev_link: link });
   return c.json({ ok: true });
 });

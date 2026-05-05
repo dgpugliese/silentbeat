@@ -71,7 +71,7 @@ recipients.post('/:id/test-fire/confirm', async (c) => {
     const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(r.switch_id));
     await stub.fetch('https://do/arm', {
       method: 'POST',
-      body: JSON.stringify({ expiryAt: sw.expiry_at }),
+      body: JSON.stringify({ switchId: r.switch_id, expiryAt: sw.expiry_at }),
     }).catch(() => {});
   }
 

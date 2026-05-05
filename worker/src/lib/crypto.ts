@@ -1,11 +1,7 @@
-// Crypto helpers — Workers WebCrypto only. All key material treated as opaque; never logged.
-//
-// PIN hashing uses PBKDF2-SHA256 at 600k iters (OWASP minimum for 2023+).
-// Argon2id is the better choice but requires bundling a WASM module via
-// wrangler [[wasm_modules]] — Workers reject runtime WebAssembly.compile.
-// That bundling is a Phase 4 hardening task; PBKDF2-SHA256 is the documented
-// interim choice and is referenced by name in the threat model.
+// Crypto helpers — Workers WebCrypto + @noble/hashes (pure JS) for Argon2id.
+// All key material treated as opaque; never logged.
 
+import { argon2id } from '@noble/hashes/argon2.js';
 import type { Env } from '../index';
 
 const enc = new TextEncoder();
@@ -47,26 +43,26 @@ export function b64ToBytes(s: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-// === PBKDF2-SHA256 PIN hashing (Phase 4: swap for bundled Argon2id WASM) ===
+// === Argon2id PIN hashing (pure JS via @noble/hashes — runs in Workers) ===
+// Params: m=8192 KiB (8 MiB), t=3, p=1, 32-byte output.
 
-const PIN_ITERATIONS = 600_000;
+const ARGON_PARAMS = { m: 8192, t: 3, p: 1, dkLen: 32 } as const;
 
 export async function hashPin(pin: string, saltB64?: string): Promise<{ hash: string; salt: string }> {
   const salt = saltB64 ? b64ToBytes(saltB64) : randomBytes(16);
-  const baseKey = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: PIN_ITERATIONS, hash: 'SHA-256' },
-    baseKey,
-    256,
-  );
-  return { hash: bytesToB64(new Uint8Array(bits)), salt: bytesToB64(salt) };
+  const out = argon2id(pin, salt, ARGON_PARAMS);
+  return { hash: bytesToB64(out), salt: bytesToB64(salt) };
 }
 
 export async function verifyPin(pin: string, expectedHashB64: string, saltB64: string): Promise<boolean> {
   const { hash } = await hashPin(pin, saltB64);
-  if (hash.length !== expectedHashB64.length) return false;
+  return constantTimeEqual(hash, expectedHashB64);
+}
+
+export function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < hash.length; i++) diff |= hash.charCodeAt(i) ^ expectedHashB64.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
 

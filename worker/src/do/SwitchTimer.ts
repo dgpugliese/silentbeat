@@ -1,22 +1,25 @@
 import type { Env } from '../index';
 import { append } from '../lib/auditlog';
+import { aeadDecrypt, bytesToB64, randomBytes, sha256Hex } from '../lib/crypto';
+import { sendEmail } from '../lib/email';
+
+const enc = new TextEncoder();
 
 export class SwitchTimer {
   state: DurableObjectState;
   env: Env;
-  switchId: string;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    this.switchId = state.id.name ?? state.id.toString();
   }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
     switch (url.pathname) {
       case '/arm': {
-        const { expiryAt } = await req.json<{ expiryAt: number }>();
+        const { switchId, expiryAt } = await req.json<{ switchId: string; expiryAt: number }>();
+        await this.state.storage.put('switchId', switchId);
         await this.state.storage.put('expiryAt', expiryAt);
         await this.state.storage.setAlarm(expiryAt);
         return Response.json({ ok: true });
@@ -33,9 +36,10 @@ export class SwitchTimer {
         return Response.json({ ok: true });
       }
       case '/release': {
-        // Backup path used by the cron sweeper when an alarm was missed.
-        const result = await this.release();
-        return Response.json(result);
+        const body = await req.json<{ switchId?: string }>().catch(() => ({} as { switchId?: string }));
+        const switchId = body.switchId ?? (await this.state.storage.get<string>('switchId'));
+        if (!switchId) return Response.json({ released: false, reason: 'no_switch_id' });
+        return Response.json(await this.release(switchId));
       }
       default:
         return new Response('not found', { status: 404 });
@@ -43,29 +47,93 @@ export class SwitchTimer {
   }
 
   async alarm(): Promise<void> {
-    await this.release();
+    const switchId = await this.state.storage.get<string>('switchId');
+    if (!switchId) return;
+    await this.release(switchId);
   }
 
-  /**
-   * Idempotent release. Safe to call from alarm() OR from the cron sweeper.
-   * Reads current status from D1; only releases if status is still 'armed'.
-   * Phase 4 will plug in the real recipient-email send + payload-link assembly.
-   */
-  async release(): Promise<{ released: boolean; reason?: string }> {
+  async release(switchId: string): Promise<{ released: boolean; reason?: string }> {
     const sw = await this.env.DB.prepare(
-      `SELECT id, status FROM switches WHERE id = ?`,
-    ).bind(this.switchId).first<{ id: string; status: string }>();
+      `SELECT s.id, s.status, s.payload_r2_key, s.share_a,
+              r.email_ct, r.share_b_to_recipient
+       FROM switches s
+       LEFT JOIN recipients r ON r.switch_id = s.id
+       WHERE s.id = ?`,
+    ).bind(switchId).first<{
+      id: string; status: string; payload_r2_key: string;
+      share_a: ArrayBuffer; email_ct: ArrayBuffer | null; share_b_to_recipient: string | null;
+    }>();
 
     if (!sw) return { released: false, reason: 'switch_not_found' };
     if (sw.status !== 'armed') return { released: false, reason: `status_${sw.status}` };
+    if (!sw.email_ct || !sw.share_b_to_recipient) {
+      return { released: false, reason: 'recipient_incomplete' };
+    }
 
-    await this.env.DB.prepare(
+    // Atomic state transition first; if email send fails after, the switch is
+    // already 'released' (audit log written) and a follow-up cron pass will skip it.
+    // This prefers "log says released" over "email actually sent" — which matches
+    // the trust model (the public log is the source of truth).
+    const update = await this.env.DB.prepare(
       `UPDATE switches SET status = 'released' WHERE id = ? AND status = 'armed'`,
-    ).bind(this.switchId).run();
+    ).bind(switchId).run();
+    if ((update.meta?.changes ?? 0) === 0) {
+      return { released: false, reason: 'race_already_handled' };
+    }
 
-    await append(this.env, this.switchId, 'release');
+    const recipientEmail = new TextDecoder().decode(
+      await aeadDecrypt(this.env, new Uint8Array(sw.email_ct), enc.encode(switchId)),
+    );
+    const shareAB64 = bytesToB64(new Uint8Array(sw.share_a));
+
+    // One-time download token, 7-day TTL
+    const tokenRaw = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+    const tokenHash = await sha256Hex(tokenRaw);
+    await this.env.SESSIONS.put(`release-token:${switchId}`, tokenHash, {
+      expirationTtl: 7 * 86400,
+    });
+    const downloadUrl = `${this.env.PUBLIC_BASE_URL}/api/release/${switchId}/payload?t=${tokenRaw}`;
+    const verifyUrl = `${this.env.PUBLIC_BASE_URL}/log.html`;
+
+    const text = [
+      'A SilentBeat message has been released to you.',
+      '',
+      `The user who set this up did not check in before their timer expired.`,
+      'Their wishes were that you receive this message in that case.',
+      '',
+      'Three things you need:',
+      '',
+      '1. SERVER KEY SHARE (our half):',
+      shareAB64,
+      '',
+      '2. ENCRYPTED RECIPIENT KEY SHARE (your half, encrypted to your enrollment pubkey):',
+      sw.share_b_to_recipient,
+      '',
+      '3. ENCRYPTED PAYLOAD (download once, save locally):',
+      downloadUrl,
+      '',
+      `Decrypt locally using your rescue file from enrollment. We never see the combined key.`,
+      '',
+      `Verify this release in the public log: ${verifyUrl}`,
+      `Switch ID for cross-reference: ${switchId}`,
+    ].join('\n');
+
+    const html = `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;
+
+    try {
+      await sendEmail(this.env, {
+        to: recipientEmail,
+        subject: 'A SilentBeat message has been released to you.',
+        text,
+        html,
+      });
+    } catch (e) {
+      // Email failed but D1 is already updated. Log and rely on operator alerting.
+      console.error('[release] email send failed', switchId, e);
+    }
+
+    await append(this.env, switchId, 'release');
     await this.state.storage.deleteAlarm();
-    // TODO Phase 4: send release email to recipient with shareA + ciphertext URL
     return { released: true };
   }
 }

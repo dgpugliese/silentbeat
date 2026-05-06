@@ -20,18 +20,24 @@ release.post('/_dev/trigger/:switchId', async (c) => {
   return new Response(r.body, { status: r.status, headers: r.headers });
 });
 
+// Single-use: the KV token is deleted after the R2 object is successfully
+// fetched on the first valid request. Subsequent requests get 404. If R2 lookup
+// fails, the token is preserved so the recipient can retry.
 release.get('/:switchId/payload', async (c) => {
   const switchId = c.req.param('switchId');
   const t = c.req.query('t');
   if (!t) return c.text('missing token', 400);
 
   const tHash = await sha256Hex(t);
-  const stored = await c.env.SESSIONS.get(`release-token:${switchId}`);
-  if (!stored) return c.text('expired or unknown', 404);
+  const key = `release-token:${switchId}`;
+  const stored = await c.env.SESSIONS.get(key);
+  if (!stored) return c.text('expired, already used, or unknown', 404);
   if (!constantTimeEqual(stored, tHash)) return c.text('invalid token', 401);
 
   const obj = await c.env.PAYLOADS.get(`payloads/${switchId}`);
   if (!obj) return c.text('payload not found (possibly purged)', 404);
+
+  await c.env.SESSIONS.delete(key);
 
   return new Response(obj.body, {
     headers: {

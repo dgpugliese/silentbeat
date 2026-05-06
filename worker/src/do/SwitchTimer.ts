@@ -128,7 +128,7 @@ export class SwitchTimer {
       '2. ENCRYPTED RECIPIENT SHARE B (JSON, ECIES under your enrollment pubkey):',
       encryptedShareB,
       '',
-      '3. ENCRYPTED PAYLOAD URL (download once, save locally):',
+      '3. ENCRYPTED PAYLOAD URL (single-use — the link works exactly once, save the file on first download):',
       downloadUrl,
       '',
       'The browser:',

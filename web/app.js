@@ -77,7 +77,19 @@
       return k;
     },
 
-    // ECIES under P-256: ephemeral keypair, ECDH → AES-GCM key, encrypt plaintext.
+    // HKDF-SHA-256 over ECDH shared bits, with a fixed label for domain separation.
+    // Returns a 32-byte AES-GCM key. Both sides must derive with the same label.
+    async _hkdfAesKey(sharedBits, usages) {
+      const ikm = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
+      const info = new TextEncoder().encode('silentbeat/ecies/v2/shareB');
+      const salt = new Uint8Array(32);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt, info },
+        ikm, { name: 'AES-GCM', length: 256 }, false, usages,
+      );
+    },
+
+    // ECIES under P-256: ephemeral keypair, ECDH → HKDF-SHA-256 → AES-GCM key.
     // Output is JSON-serializable so it round-trips through the database.
     async eciesEncrypt(plaintextBytes, recipientPubKeyJwk) {
       const recipientPub = await crypto.subtle.importKey(
@@ -90,15 +102,15 @@
       const sharedBits = await crypto.subtle.deriveBits(
         { name: 'ECDH', public: recipientPub }, eph.privateKey, 256,
       );
-      const aesKey = await crypto.subtle.importKey('raw', sharedBits, { name: 'AES-GCM' }, false, ['encrypt']);
+      const aesKey = await this._hkdfAesKey(sharedBits, ['encrypt']);
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, plaintextBytes));
       const ephPubJwk = await crypto.subtle.exportKey('jwk', eph.publicKey);
-      return { v: 1, ephPub: ephPubJwk, iv: this.bytesToB64(iv), ct: this.bytesToB64(ct) };
+      return { v: 2, ephPub: ephPubJwk, iv: this.bytesToB64(iv), ct: this.bytesToB64(ct) };
     },
 
     async eciesDecrypt(envelope, privateKeyJwk) {
-      if (!envelope || envelope.v !== 1) throw new Error('unknown envelope');
+      if (!envelope || envelope.v !== 2) throw new Error('unknown envelope version');
       const priv = await crypto.subtle.importKey(
         'jwk', privateKeyJwk,
         { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits'],
@@ -110,7 +122,7 @@
       const sharedBits = await crypto.subtle.deriveBits(
         { name: 'ECDH', public: ephPub }, priv, 256,
       );
-      const aesKey = await crypto.subtle.importKey('raw', sharedBits, { name: 'AES-GCM' }, false, ['decrypt']);
+      const aesKey = await this._hkdfAesKey(sharedBits, ['decrypt']);
       const iv = this.b64ToBytes(envelope.iv);
       const ct = this.b64ToBytes(envelope.ct);
       return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct));

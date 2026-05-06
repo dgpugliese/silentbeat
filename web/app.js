@@ -128,6 +128,80 @@
       return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct));
     },
 
+    // --- WebAuthn (passkeys) ---
+    // simplewebauthn returns base64url-encoded fields; navigator.credentials wants ArrayBuffers.
+    // These helpers translate both directions.
+    bytesToB64url(b) {
+      return this.bytesToB64(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    },
+    b64urlToBytes(s) {
+      const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+      return this.b64ToBytes(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    },
+
+    _prepCreate(opts) {
+      const o = { ...opts };
+      o.challenge = this.b64urlToBytes(opts.challenge);
+      o.user = { ...opts.user, id: this.b64urlToBytes(opts.user.id) };
+      if (Array.isArray(opts.excludeCredentials)) {
+        o.excludeCredentials = opts.excludeCredentials.map((c) => ({ ...c, id: this.b64urlToBytes(c.id) }));
+      }
+      return o;
+    },
+    _prepGet(opts) {
+      const o = { ...opts };
+      o.challenge = this.b64urlToBytes(opts.challenge);
+      if (Array.isArray(opts.allowCredentials)) {
+        o.allowCredentials = opts.allowCredentials.map((c) => ({ ...c, id: this.b64urlToBytes(c.id) }));
+      }
+      return o;
+    },
+    _credToJson(cred) {
+      const out = {
+        id: cred.id,
+        rawId: this.bytesToB64url(new Uint8Array(cred.rawId)),
+        type: cred.type,
+        clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+        response: {},
+      };
+      const r = cred.response;
+      if (r.attestationObject) {
+        out.response.attestationObject = this.bytesToB64url(new Uint8Array(r.attestationObject));
+        out.response.clientDataJSON = this.bytesToB64url(new Uint8Array(r.clientDataJSON));
+        if (r.getTransports) out.response.transports = r.getTransports();
+      } else {
+        out.response.authenticatorData = this.bytesToB64url(new Uint8Array(r.authenticatorData));
+        out.response.clientDataJSON = this.bytesToB64url(new Uint8Array(r.clientDataJSON));
+        out.response.signature = this.bytesToB64url(new Uint8Array(r.signature));
+        if (r.userHandle) out.response.userHandle = this.bytesToB64url(new Uint8Array(r.userHandle));
+      }
+      return out;
+    },
+
+    async registerPasskey() {
+      const opts = await this.api('/api/auth/passkey/register/begin', { method: 'POST', body: '{}' });
+      const cred = await navigator.credentials.create({ publicKey: this._prepCreate(opts) });
+      if (!cred) throw new Error('passkey creation cancelled');
+      return this.api('/api/auth/passkey/register/finish', {
+        method: 'POST',
+        body: JSON.stringify(this._credToJson(cred)),
+      });
+    },
+
+    async authenticateWithPasskey(email) {
+      const body = JSON.stringify(email ? { email } : {});
+      const begin = await this.api('/api/auth/passkey/authenticate/begin', { method: 'POST', body });
+      const { challengeId, ...opts } = begin;
+      const cred = await navigator.credentials.get({ publicKey: this._prepGet(opts) });
+      if (!cred) throw new Error('passkey assertion cancelled');
+      const r = await this.api('/api/auth/passkey/authenticate/finish', {
+        method: 'POST',
+        body: JSON.stringify({ challengeId, response: this._credToJson(cred) }),
+      });
+      if (r.session) this.setSession(r.session);
+      return r;
+    },
+
     // Local stash for shareB between create and finalize.
     stashShareB(switchId, shareB) {
       localStorage.setItem('sb_shareB:' + switchId, this.bytesToB64(shareB));

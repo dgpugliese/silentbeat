@@ -267,7 +267,11 @@
       status.innerHTML +=
         '<div style="color: var(--accent-2)">→ switch created · id ' + r.switchId + '</div>' +
         '<div class="t-soft">→ enrollment email sent to ' + s.recipientEmail + '</div>' +
-        '<div class="t-soft">→ shareB stashed in this browser (localStorage). do not clear browser data until your recipient has enrolled.</div>';
+        '<div style="margin-top:10px;padding:10px;border:1px solid var(--accent);border-radius:6px;font-size:13px;line-height:1.5">' +
+          '<strong>important:</strong> shareB is stashed in <em>this browser only</em> until your recipient enrolls and you finalize the switch. ' +
+          'finalize from this browser, on this device. ' +
+          'clearing browser data, switching to a different browser, or using a different device before finalize means the switch can never arm and must be destroyed.' +
+        '</div>';
       if (r.dev_enrollment_url) {
         status.innerHTML += '<div style="margin-top:8px"><a href="' + r.dev_enrollment_url + '" target="_blank">[dev] enrollment link (open in new tab)</a></div>';
       }

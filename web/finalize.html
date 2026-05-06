@@ -31,6 +31,12 @@
     Once your recipient enrolls and gives us their public key, we encrypt your half
     of the payload key to it — locally, in this browser — and the switch arms.
   </p>
+  <p class="t-soft" style="font-size: 13px; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--accent); background: rgba(255,255,255,0.02);">
+    finalize must run from the same browser/device where you created the switch.
+    shareB lives in this browser's localStorage until you finalize. if you reach this
+    page on a different device or after clearing browser data, the switch is
+    unrecoverable and must be destroyed.
+  </p>
 
   <section class="wobble countdown-card" style="text-align: left; padding: 22px;">
     <div class="t-mono t-soft" style="font-size: 11px; letter-spacing: 0.18em;">STATUS</div>

@@ -75,12 +75,10 @@ switches.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO switches
-       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped,
+       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot_wrapped,
         expiry_at, timer_seconds, last_checkin_at, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareABytes, pinHashSet,
-           // Legacy `duress_slot` int column kept for schema compat; real value lives wrapped.
-           0, duressBlob,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareABytes, pinHashSet, duressBlob,
            expiry, body.timerSeconds, now, now),
     c.env.DB.prepare(
       `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, enrollment_token_hash, status)

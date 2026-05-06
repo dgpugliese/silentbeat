@@ -119,7 +119,7 @@ switches.post('/', async (c) => {
     recipientId,
     status: 'pending',
     needsFinalize: true,
-    ...(c.env.ENVIRONMENT === 'development' ? { dev_enrollment_url: enrollmentUrl } : {}),
+    ...(c.env.ENVIRONMENT !== 'production' ? { dev_enrollment_url: enrollmentUrl } : {}),
   });
 });
 

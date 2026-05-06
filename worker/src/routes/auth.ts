@@ -48,7 +48,9 @@ auth.post('/magic/request', async (c) => {
     text: `Click to sign in to SilentBeat:\n\n${link}\n\nLink expires in 15 minutes. If you did not request this, ignore this email.`,
     html: `<p>Click to sign in to SilentBeat:</p><p><a href="${link}">${link}</a></p><p>Link expires in 15 minutes. If you did not request this, ignore this email.</p>`,
   });
-  if (c.env.ENVIRONMENT === 'development') return c.json({ ok: true, dev_link: link });
+  // Staging surfaces the link inline because no email vendor is wired yet.
+  // Production (with RESEND_API_KEY set) hides it; the user gets it via email.
+  if (c.env.ENVIRONMENT !== 'production') return c.json({ ok: true, dev_link: link });
   return c.json({ ok: true });
 });
 

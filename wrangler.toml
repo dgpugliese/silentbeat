@@ -1,4 +1,4 @@
-name = "silentbeat"
+name = "silentbeat-staging"
 main = "worker/src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -35,11 +35,11 @@ new_sqlite_classes = ["SwitchTimer"]
 crons = ["*/5 * * * *"]
 
 [vars]
-ENVIRONMENT = "development"
-PUBLIC_BASE_URL = "http://localhost:8787"
-RP_ID = "localhost"
+ENVIRONMENT = "staging"
+PUBLIC_BASE_URL = "https://silentbeat-staging.the-it-visionary.workers.dev"
+RP_ID = "silentbeat-staging.the-it-visionary.workers.dev"
 RP_NAME = "SilentBeat"
-RP_ORIGIN = "http://localhost:8787"
+RP_ORIGIN = "https://silentbeat-staging.the-it-visionary.workers.dev"
 EMAIL_FROM = "SilentBeat <noreply@silentbeat.test>"
 # Secrets (set with `wrangler secret put NAME`):
 #   MASTER_KEY        — 32 bytes b64, AES-GCM master for KMS-style DEK wrapping

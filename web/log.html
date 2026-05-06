@@ -36,8 +36,8 @@
       <div class="t-soft" style="font-size: 13px; margin-top: 2px;">append-only · merkle-rooted · refreshes every 60s</div>
     </div>
     <div class="log-actions">
-      <a class="btn btn-sm" href="/log/verify">verify root ↑</a>
-      <a class="btn btn-sm" href="/log/export.csv">download CSV</a>
+      <button id="verify-btn" class="btn btn-sm" type="button">verify root ↑</button>
+      <button id="csv-btn" class="btn btn-sm" type="button">download CSV</button>
     </div>
   </header>
   <svg class="underline-sketch" width="120" height="10" viewBox="0 0 120 10" aria-hidden="true">
@@ -61,10 +61,55 @@
     <span class="t-soft">we cannot delete entries. only append.</span>
   </div>
 
+  <div id="verify-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="verify-title" hidden>
+    <div class="wobble modal-card">
+      <div class="modal-head">
+        <div class="h-hand" id="verify-title" style="font-size: 24px;">verify root</div>
+        <button class="modal-close" id="verify-close" type="button" aria-label="close">×</button>
+      </div>
+      <p class="t-soft" style="font-size: 13px; margin: 8px 0 12px;">
+        Every minute we publish a signed checkpoint of the audit-log root. Below is the current
+        checkpoint, signed with our Ed25519 log key. The signature is verified in your browser
+        — no SilentBeat server is asked whether it&rsquo;s valid.
+      </p>
+
+      <div class="verify-row">
+        <span class="verify-label">verification</span>
+        <span id="verify-status" class="t-mono">checking…</span>
+      </div>
+      <div class="verify-row"><span class="verify-label">seq</span><span id="v-seq" class="t-mono"></span></div>
+      <div class="verify-row"><span class="verify-label">root (sha-256)</span><span id="v-root" class="t-mono"></span></div>
+      <div class="verify-row"><span class="verify-label">last entry</span><span id="v-at" class="t-mono"></span></div>
+      <div class="verify-row"><span class="verify-label">checkpoint</span><span id="v-ckpt" class="t-mono"></span></div>
+      <div class="verify-row verify-row-stack">
+        <span class="verify-label">signature (Ed25519, base64)</span>
+        <span id="v-sig" class="t-mono verify-blob"></span>
+      </div>
+      <div class="verify-row verify-row-stack">
+        <span class="verify-label">public key (SPKI, base64)</span>
+        <span id="v-pk" class="t-mono verify-blob"></span>
+      </div>
+      <div class="verify-row verify-row-stack">
+        <span class="verify-label">canonical input</span>
+        <span id="v-canon" class="t-mono verify-blob"></span>
+      </div>
+
+      <hr class="hr-sketch" style="margin: 14px 0 10px;" />
+      <div class="t-soft" style="font-size: 12px; margin-bottom: 6px;">verify it yourself (Node ≥ 16):</div>
+      <pre id="verify-snippet" class="t-mono verify-snippet"></pre>
+      <div class="actions" style="margin-top: 12px; justify-content: flex-end;">
+        <button id="copy-snippet" class="btn btn-sm" type="button">copy snippet</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script src="/app.js"></script>
 <script>
+  let cachedEntries = [];
+  let cachedRoot = null;
+
   const eventLabel = {
     switch_created: 'create',
     switch_armed: 'armed',
@@ -86,6 +131,7 @@
     try {
       const r = await SB.api('/api/log?limit=50');
       const entries = r.entries || [];
+      cachedEntries = entries;
       if (!entries.length) {
         const empty = document.createElement('div');
         empty.className = 'log-row t-faint';
@@ -109,6 +155,7 @@
       }
       // Update root display
       const root = await SB.api('/api/log/root');
+      cachedRoot = root;
       const rootSpan = document.querySelector('.log-foot .t-mono');
       if (rootSpan) rootSpan.textContent = 'root: ' + (root.root || '').slice(0, 8) + '…' + (root.root || '').slice(-4) + ' — signed by silentbeat';
     } catch (e) {
@@ -120,6 +167,102 @@
       container.appendChild(err);
     }
   })();
+
+  // === verify-root modal ===
+  const modal = document.getElementById('verify-modal');
+  const verifyStatus = document.getElementById('verify-status');
+
+  function fmtTs(t) { return t ? new Date(t).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'; }
+
+  async function verifyRoot(root) {
+    try {
+      const pkBytes = SB.b64ToBytes(root.public_key);
+      const sigBytes = SB.b64ToBytes(root.signature);
+      const inputBytes = new TextEncoder().encode(root.canonical_input);
+      const key = await crypto.subtle.importKey('raw', pkBytes, { name: 'Ed25519' }, false, ['verify']).catch(async () => {
+        return crypto.subtle.importKey('spki', pkBytes, { name: 'Ed25519' }, false, ['verify']);
+      });
+      const ok = await crypto.subtle.verify('Ed25519', key, sigBytes, inputBytes);
+      return ok;
+    } catch (e) {
+      console.error('verify failed', e);
+      return null;
+    }
+  }
+
+  function buildSnippet(root) {
+    return [
+      'node -e \'',
+      'const c = require("crypto");',
+      `const input = Buffer.from(${JSON.stringify(root.canonical_input)});`,
+      `const sig = Buffer.from("${root.signature}", "base64");`,
+      `const pk = c.createPublicKey({ key: Buffer.from("${root.public_key}", "base64"), format: "der", type: "spki" });`,
+      'console.log(c.verify(null, input, pk, sig) ? "VALID" : "INVALID");',
+      '\'',
+    ].join('\n');
+  }
+
+  document.getElementById('verify-btn').addEventListener('click', async () => {
+    modal.hidden = false;
+    let root = cachedRoot;
+    if (!root) {
+      try { root = await SB.api('/api/log/root'); cachedRoot = root; }
+      catch (e) { verifyStatus.textContent = 'failed to load: ' + e.message; return; }
+    }
+    document.getElementById('v-seq').textContent = root.seq;
+    document.getElementById('v-root').textContent = root.root;
+    document.getElementById('v-at').textContent = fmtTs(root.last_entry_at);
+    document.getElementById('v-ckpt').textContent = fmtTs(root.checkpoint_at);
+    document.getElementById('v-sig').textContent = root.signature;
+    document.getElementById('v-pk').textContent = root.public_key;
+    document.getElementById('v-canon').textContent = root.canonical_input;
+    document.getElementById('verify-snippet').textContent = buildSnippet(root);
+
+    verifyStatus.textContent = 'verifying in your browser…';
+    verifyStatus.style.color = 'var(--ink-soft)';
+    const ok = await verifyRoot(root);
+    if (ok === true)  { verifyStatus.textContent = '✓ valid (Ed25519 signature checks out)'; verifyStatus.style.color = 'var(--accent-2)'; }
+    else if (ok === false) { verifyStatus.textContent = '✗ INVALID — the signature does NOT match this root'; verifyStatus.style.color = 'var(--accent)'; }
+    else { verifyStatus.textContent = 'browser cannot verify Ed25519 (unsupported); use the snippet below'; verifyStatus.style.color = 'var(--ink-faint)'; }
+  });
+
+  document.getElementById('verify-close').addEventListener('click', () => modal.hidden = true);
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
+  document.getElementById('copy-snippet').addEventListener('click', () => {
+    const txt = document.getElementById('verify-snippet').textContent;
+    navigator.clipboard.writeText(txt).then(() => {
+      const b = document.getElementById('copy-snippet');
+      b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy snippet', 1200);
+    });
+  });
+
+  // === CSV export ===
+  document.getElementById('csv-btn').addEventListener('click', () => {
+    if (!cachedEntries.length) { alert('no entries to export yet'); return; }
+    const header = ['seq', 'at_iso', 'event', 'switch_id_hash', 'entry_hash', 'prev_hash'];
+    const csv = [header.join(',')];
+    for (const e of cachedEntries) {
+      const row = [
+        e.seq,
+        new Date(e.at).toISOString(),
+        e.event,
+        e.switch_id_hash || '',
+        e.entry_hash || '',
+        e.prev_hash || '',
+      ].map((v) => {
+        const s = String(v);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      });
+      csv.push(row.join(','));
+    }
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'silentbeat-log-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  });
 </script>
 
 </body>

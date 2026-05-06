@@ -1,0 +1,14 @@
+{
+  "name": "SilentBeat",
+  "short_name": "silentbeat",
+  "description": "An honest dead man's switch. Encrypted in your browser. Released only if you stop checking in.",
+  "start_url": "/dashboard.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1012",
+  "theme_color": "#0f1012",
+  "icons": [
+    { "src": "/brand/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

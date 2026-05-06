@@ -145,7 +145,7 @@
 
     <aside class="create-side">
       <div class="wobble side-card">
-        <div class="h-hand" style="font-size: 22px;">preview</div>
+        <div class="h-hand" style="font-size: 22px;">your switch so far</div>
         <hr class="hr-sketch" style="margin: 10px 0;" />
         <div class="t-mono" style="font-size: 12px; line-height: 1.7;">
           <div>→ recipient: <span class="t-faint">jane@…</span></div>
@@ -253,9 +253,9 @@
     try {
       const enc = new TextEncoder();
       const { blob, K } = await SB.encryptPayload(enc.encode(s.payload));
-      status.innerHTML += '<div class="t-soft">→ splitting key (shareA stays with us, shareB stays with you until your recipient enrolls)…</div>';
+      status.innerHTML += '<div class="t-soft">→ splitting the encryption key (we keep one half, you hold the recipient\'s half until they enroll)…</div>';
       const { shareA, shareB } = SB.splitKey(K);
-      status.innerHTML += '<div class="t-soft">→ uploading ciphertext + shareA…</div>';
+      status.innerHTML += '<div class="t-soft">→ uploading ciphertext + our half of the key…</div>';
       const r = await SB.api('/api/switches', {
         method: 'POST',
         body: JSON.stringify({
@@ -275,7 +275,7 @@
         '<div style="color: var(--accent-2)">→ switch created · id ' + r.switchId + '</div>' +
         '<div class="t-soft">→ enrollment email sent to ' + s.recipientEmail + '</div>' +
         '<div style="margin-top:10px;padding:10px;border:1px solid var(--accent);border-radius:6px;font-size:13px;line-height:1.5">' +
-          '<strong>important:</strong> shareB is stashed in <em>this browser only</em> until your recipient enrolls and you finalize the switch. ' +
+          '<strong>important:</strong> the recipient\'s half of the key is stashed in <em>this browser only</em> until your recipient enrolls and you finalize the switch. ' +
           'finalize from this browser, on this device. ' +
           'clearing browser data, switching to a different browser, or using a different device before finalize means the switch can never arm and must be destroyed.' +
         '</div>';

@@ -37,7 +37,7 @@
 
   <section class="copy-md">
     <h2 class="h-hand">The claim in one paragraph.</h2>
-    <p>The payload key is split into two halves. Half lives on our server (share A) and rotates on every check-in. Half is generated in your recipient's browser at enrollment (share B) and never touches our server in plaintext. Neither half decrypts alone. At expiry we email share A to your recipient; they combine it with their share B locally. SilentBeat — the company, the operator, the database — cannot read your message at any point.</p>
+    <p>The payload key is split into two halves. Our server holds one half and rotates it on every check-in. The other half is generated in your recipient's browser at enrollment and never touches our server in plaintext. Neither half decrypts alone. At expiry we email our half to your recipient; they combine it with their half locally. SilentBeat — the company, the operator, the database — cannot read your message at any point.</p>
 
     <h2 class="h-hand">Actors and what we defend against.</h2>
 
@@ -64,12 +64,12 @@
         </tr>
         <tr>
           <td>malicious recipient</td>
-          <td>Cannot decrypt without server share A. Cannot force timer expiry.</td>
-          <td>Can wait. Can lie about losing share B to coerce you into early disclosure. Can publish the payload after release — we have no DRM.</td>
+          <td>Cannot decrypt without server our half. Cannot force timer expiry.</td>
+          <td>Can wait. Can lie about losing recipient half to coerce you into early disclosure. Can publish the payload after release — we have no DRM.</td>
         </tr>
         <tr>
           <td>malicious user (using SilentBeat to threaten release)</td>
-          <td>Recipient knows they were enrolled. Recipient can refuse / discard share B = preempt release.</td>
+          <td>Recipient knows they were enrolled. Recipient can refuse / discard recipient half = preempt release.</td>
           <td>We cannot prevent this product being used as a coercion tool. ToS forbids it. Abuse reports terminate accounts.</td>
         </tr>
         <tr>
@@ -84,11 +84,11 @@
         </tr>
         <tr>
           <td>user clears browser before finalize</td>
-          <td>None — share B lives only in this browser between create and finalize.</td>
+          <td>None — recipient half lives only in this browser between create and finalize.</td>
           <td>Switch is unrecoverable and must be destroyed. Documented on the create and finalize pages. Window is short (typically minutes-to-hours, until the recipient enrolls).</td>
         </tr>
         <tr>
-          <td>recipient lost share B</td>
+          <td>recipient lost their half of the key</td>
           <td>None — payload is unrecoverable.</td>
           <td>This is the price of true split-key. Documented prominently at recipient enrollment.</td>
         </tr>

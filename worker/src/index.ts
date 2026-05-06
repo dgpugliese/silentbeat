@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { SwitchTimer } from './do/SwitchTimer';
 import { sweepExpired } from './cron';
 import { auth } from './routes/auth';
+import { account } from './routes/account';
 import { switches } from './routes/switches';
 import { checkins } from './routes/checkins';
 import { recipients } from './routes/recipients';
@@ -32,6 +33,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.get('/api/health', (c) => c.json({ ok: true, env: c.env.ENVIRONMENT }));
 
 app.route('/api/auth', auth);
+app.route('/api/account', account);
 app.route('/api/switches', switches);
 app.route('/api/switches', checkins);
 app.route('/api/recipients', recipients);

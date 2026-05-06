@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SilentBeat — Settings</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-app">
+
+  <nav class="appnav">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="appnav-links">
+      <a href="/dashboard.html">dashboard</a>
+      <a href="/log.html">log</a>
+      <a href="/settings.html" class="active">settings</a>
+    </div>
+  </nav>
+
+  <header>
+    <h1 class="h-hand" style="font-size: 32px; margin: 0;">settings</h1>
+    <div class="t-soft" style="font-size: 13px; margin-top: 2px;">your account, your keys, your exit.</div>
+  </header>
+  <svg class="underline-sketch" width="120" height="10" viewBox="0 0 120 10" aria-hidden="true">
+    <path d="M2 6 Q 30 1, 60 5 T 118 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+  </svg>
+
+  <section class="wobble settings-section">
+    <div class="panel-label t-mono">ACCOUNT</div>
+    <div class="settings-row">
+      <span class="settings-key">email</span>
+      <span id="acct-email" class="settings-val t-mono">—</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-key">joined</span>
+      <span id="acct-joined" class="settings-val t-mono">—</span>
+    </div>
+    <div class="settings-actions">
+      <button id="signout-btn" class="btn btn-sm" type="button">sign out</button>
+    </div>
+  </section>
+
+  <section class="wobble settings-section">
+    <div class="panel-label t-mono">PASSKEYS</div>
+    <p class="t-soft" style="font-size: 13px; margin: 4px 0 10px;">
+      Hardware-backed sign-in keys. Each device you register gets its own credential.
+      You can sign in from any registered device; removing one doesn&rsquo;t affect the others.
+    </p>
+    <div id="passkey-list" class="settings-list">
+      <div class="t-soft" style="font-size: 13px;">loading…</div>
+    </div>
+    <div id="passkey-msg" class="t-soft" style="font-size: 12px; min-height: 14px; margin-top: 8px;"></div>
+    <div class="settings-actions">
+      <button id="register-passkey-btn" class="btn btn-sm" type="button">register passkey on this device</button>
+    </div>
+  </section>
+
+  <section class="wobble settings-section panel-danger">
+    <div class="panel-label t-mono">DANGER ZONE</div>
+    <p class="t-soft" style="font-size: 13px; margin: 4px 0 10px;">
+      Permanently delete your account. All switches, recipients, payloads, sessions, and
+      passkeys are destroyed. A pseudonymous <span class="t-mono">account_deleted</span> entry
+      is appended to the public log so the deletion itself is auditable. This cannot be undone.
+    </p>
+    <div class="settings-actions">
+      <button id="delete-acct-btn" class="btn btn-sm btn-danger" type="button">delete my account →</button>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a> · <a href="/threat-model.html">threat model</a></span>
+  </div>
+
+  <div id="delete-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="del-title" hidden>
+    <div class="wobble modal-card">
+      <div class="modal-head">
+        <div class="h-hand" id="del-title" style="font-size: 24px; color: var(--accent);">delete account</div>
+        <button class="modal-close" id="del-close" type="button" aria-label="close">×</button>
+      </div>
+      <p class="t-soft" style="font-size: 13px; margin: 8px 0 12px;">
+        This destroys every armed and pending switch (cancels timers, purges payloads from R2),
+        removes all your passkeys, magic-link tokens, and sessions, then deletes your user
+        record. The public log will gain one signed <span class="t-mono">account_deleted</span>
+        entry under a hashed user ID.
+      </p>
+      <p class="t-soft" style="font-size: 13px; margin: 0 0 10px;">
+        Type <span class="t-mono" style="color: var(--accent);">DELETE</span> to confirm.
+      </p>
+      <input id="del-confirm" class="field t-mono" type="text" autocomplete="off" placeholder="DELETE" />
+      <div id="del-status" class="t-soft" style="font-size: 12px; min-height: 14px; margin-top: 10px;"></div>
+      <div class="actions" style="margin-top: 12px; justify-content: flex-end; gap: 8px;">
+        <button id="del-cancel" class="btn btn-sm" type="button">cancel</button>
+        <button id="del-confirm-btn" class="btn btn-sm btn-danger btn-primary" type="button" disabled>delete account</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="/app.js"></script>
+<script>
+  SB.requireAuth();
+
+  function fmtDate(t) {
+    if (!t) return '—';
+    return new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtRelative(t) {
+    if (!t) return 'never';
+    return SB.timeAgo(t);
+  }
+
+  async function loadAccount() {
+    try {
+      const me = await SB.api('/api/auth/me');
+      if (!me.user) { location.replace('/signin.html'); return; }
+      document.getElementById('acct-email').textContent = me.user.email;
+      document.getElementById('acct-joined').textContent = fmtDate(me.user.created_at);
+    } catch (e) {
+      if (e.status === 401) { SB.clearSession(); location.replace('/signin.html'); }
+    }
+  }
+
+  async function loadPasskeys() {
+    const list = document.getElementById('passkey-list');
+    try {
+      const r = await SB.api('/api/auth/passkeys');
+      const items = r.passkeys || [];
+      if (!items.length) {
+        list.innerHTML = '<div class="t-soft" style="font-size: 13px;">no passkeys yet — register one below.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      for (const p of items) {
+        const div = document.createElement('div');
+        div.className = 'settings-row';
+        const transports = (p.transports || '').split(',').filter(Boolean).join(' · ') || 'unknown transports';
+        const idShort = p.credential_id.slice(0, 12) + '…';
+        div.innerHTML =
+          '<div class="settings-key" style="display: flex; flex-direction: column; gap: 2px;">' +
+            '<span class="t-mono" style="font-size: 12px;">' + idShort + '</span>' +
+            '<span class="t-faint" style="font-size: 11px;">' + transports + '</span>' +
+          '</div>' +
+          '<div class="settings-val" style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">' +
+            '<span class="t-faint" style="font-size: 11px;">added ' + fmtDate(p.created_at) + '</span>' +
+            '<span class="t-faint" style="font-size: 11px;">last used ' + fmtRelative(p.last_used_at) + '</span>' +
+          '</div>';
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-tiny btn-danger';
+        removeBtn.type = 'button';
+        removeBtn.textContent = 'remove';
+        removeBtn.style.marginLeft = '12px';
+        removeBtn.addEventListener('click', () => removePasskey(p.credential_id));
+        div.appendChild(removeBtn);
+        list.appendChild(div);
+      }
+    } catch (e) {
+      list.innerHTML = '<div style="color: var(--accent); font-size: 13px;">failed to load: ' + e.message + '</div>';
+    }
+  }
+
+  async function removePasskey(id) {
+    if (!confirm('Remove this passkey? You\'ll need another way to sign in if it\'s your only one.')) return;
+    const msg = document.getElementById('passkey-msg');
+    msg.textContent = 'removing…';
+    try {
+      await SB.api('/api/auth/passkeys/' + encodeURIComponent(id), { method: 'DELETE' });
+      msg.textContent = 'removed.';
+      await loadPasskeys();
+    } catch (e) {
+      msg.style.color = 'var(--accent)';
+      msg.textContent = 'failed: ' + e.message;
+    }
+  }
+
+  document.getElementById('register-passkey-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById('passkey-msg');
+    btn.disabled = true; msg.style.color = ''; msg.textContent = 'awaiting your authenticator…';
+    try {
+      await SB.registerPasskey();
+      msg.textContent = 'registered.';
+      await loadPasskeys();
+    } catch (err) {
+      msg.style.color = 'var(--accent)';
+      msg.textContent = err && err.name === 'NotAllowedError' ? 'cancelled.' : 'failed: ' + (err && err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('signout-btn').addEventListener('click', async () => {
+    try { await SB.api('/api/auth/signout', { method: 'POST', body: '{}' }); } catch {}
+    SB.clearSession();
+    location.replace('/');
+  });
+
+  // === delete account modal ===
+  const delModal = document.getElementById('delete-modal');
+  const delInput = document.getElementById('del-confirm');
+  const delBtn = document.getElementById('del-confirm-btn');
+  const delStatus = document.getElementById('del-status');
+
+  document.getElementById('delete-acct-btn').addEventListener('click', () => {
+    delModal.hidden = false; delInput.value = ''; delBtn.disabled = true;
+    delStatus.style.color = ''; delStatus.textContent = '';
+    setTimeout(() => delInput.focus(), 30);
+  });
+  function closeDel() { delModal.hidden = true; }
+  document.getElementById('del-close').addEventListener('click', closeDel);
+  document.getElementById('del-cancel').addEventListener('click', closeDel);
+  delModal.addEventListener('click', (e) => { if (e.target === delModal) closeDel(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !delModal.hidden) closeDel(); });
+
+  delInput.addEventListener('input', () => { delBtn.disabled = delInput.value !== 'DELETE'; });
+
+  delBtn.addEventListener('click', async () => {
+    delBtn.disabled = true;
+    delStatus.style.color = 'var(--ink-soft)';
+    delStatus.textContent = 'deleting account…';
+    try {
+      await SB.api('/api/account/delete', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) });
+      delStatus.style.color = 'var(--accent-2)';
+      delStatus.textContent = 'account deleted. signing you out…';
+      SB.clearSession();
+      setTimeout(() => location.replace('/'), 1200);
+    } catch (e) {
+      delStatus.style.color = 'var(--accent)';
+      delStatus.textContent = 'failed: ' + e.message;
+      delBtn.disabled = false;
+    }
+  });
+
+  loadAccount();
+  loadPasskeys();
+</script>
+
+</body>
+</html>

@@ -9,7 +9,8 @@ export type AuditEvent =
   | 'duress_release'
   | 'user_purge'
   | 'recipient_enrolled'
-  | 'test_fire';
+  | 'test_fire'
+  | 'account_deleted';
 
 const PUBLIC_SALT = 'silentbeat-public-v1';
 const enc = new TextEncoder();

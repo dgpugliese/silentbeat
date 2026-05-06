@@ -500,6 +500,73 @@ a:hover { color: var(--accent-2); }
 .signin-card { padding: 22px; margin-top: 18px; }
 .signin-method p { font-size: 13px; line-height: 1.55; margin: 4px 0 10px; color: var(--ink-soft); }
 
+/* === Modal === */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px;
+  z-index: 1000;
+  overflow-y: auto;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.modal-backdrop[hidden] { display: none; }
+.modal-card {
+  background: var(--paper);
+  padding: 22px;
+  width: 100%; max-width: 640px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.modal-close {
+  background: transparent; border: 0; color: var(--ink-faint);
+  font-size: 28px; line-height: 1; cursor: pointer;
+  padding: 0 6px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.modal-close:hover { color: var(--ink); }
+
+.verify-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--ink-faint);
+  font-size: 12px;
+}
+.verify-row:last-of-type { border-bottom: 0; }
+.verify-row-stack { flex-direction: column; align-items: flex-start; }
+.verify-label {
+  color: var(--ink-faint); font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.verify-blob {
+  word-break: break-all;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+.verify-snippet {
+  background: var(--body-bg);
+  border: 1px dashed var(--ink-faint);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink-soft);
+  margin: 0;
+  overflow-x: auto;
+}
+
 @media (max-width: 760px) {
   .nav-links { gap: 14px; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
   .topbar { gap: 12px; flex-wrap: wrap; }

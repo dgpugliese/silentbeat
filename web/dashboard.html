@@ -78,11 +78,39 @@
     </div>
     <div class="wobble panel panel-danger">
       <div class="panel-label t-mono">DANGER ZONE</div>
+      <p class="t-soft" style="font-size: 12px; line-height: 1.5; margin: 6px 0 8px;">
+        Cancels the timer and permanently purges the encrypted payload from R2.
+        The switch is marked <span class="t-mono">user_purged</span> in the public log.
+      </p>
       <div class="danger-actions">
         <button id="purge-btn" class="btn btn-tiny btn-danger" type="button">destroy payload</button>
       </div>
     </div>
   </section>
+
+  <div id="purge-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="purge-title" hidden>
+    <div class="wobble modal-card">
+      <div class="modal-head">
+        <div class="h-hand" id="purge-title" style="font-size: 24px; color: var(--accent);">destroy payload</div>
+        <button class="modal-close" id="purge-close" type="button" aria-label="close">×</button>
+      </div>
+      <p class="t-soft" style="font-size: 13px; margin: 8px 0 12px;">
+        This permanently deletes the encrypted payload from R2 and cancels the switch&rsquo;s timer.
+        Your recipient will not receive anything. The action is logged as
+        <span class="t-mono">user_purge</span> in the public log under the switch&rsquo;s hashed id.
+        <strong style="color: var(--accent);">There is no undo.</strong>
+      </p>
+      <p class="t-soft" style="font-size: 13px; margin: 0 0 10px;">
+        Type <span class="t-mono" style="color: var(--accent);">DESTROY</span> to confirm.
+      </p>
+      <input id="purge-confirm" class="field t-mono" type="text" autocomplete="off" placeholder="DESTROY" />
+      <div id="purge-status" class="t-soft" style="font-size: 12px; min-height: 14px; margin-top: 10px;"></div>
+      <div class="actions" style="margin-top: 12px; justify-content: flex-end; gap: 8px;">
+        <button id="purge-cancel" class="btn btn-sm" type="button">cancel</button>
+        <button id="purge-confirm-btn" class="btn btn-sm btn-danger btn-primary" type="button" disabled>destroy payload</button>
+      </div>
+    </div>
+  </div>
 
 </main>
 
@@ -101,6 +129,7 @@
     cells.forEach(c => c.textContent = '--');
     document.getElementById('expires-at').textContent = '—';
     document.getElementById('purge-btn').style.display = 'none';
+    document.getElementById('recent-list').innerHTML = '<div class="t-soft">no activity yet</div>';
   }
 
   function setActive(sw) {
@@ -132,6 +161,7 @@
     }
     document.getElementById('purge-btn').dataset.id = sw.id;
     if (sw.status === 'armed') { tick(); tickHandle = setInterval(tick, 1000); }
+    loadActivity(sw.id);
   }
 
   function tick() {
@@ -144,15 +174,64 @@
     cells[3].textContent = SB.pad(t.s);
   }
 
-  document.getElementById('purge-btn').addEventListener('click', async () => {
-    if (!activeSwitch || !confirm('Permanently destroy the encrypted payload? This cannot be undone.')) return;
+  // === destroy-payload modal ===
+  const purgeModal = document.getElementById('purge-modal');
+  const purgeInput = document.getElementById('purge-confirm');
+  const purgeBtn = document.getElementById('purge-confirm-btn');
+  const purgeStatus = document.getElementById('purge-status');
+
+  function openPurge() {
+    if (!activeSwitch) return;
+    purgeModal.hidden = false;
+    purgeInput.value = ''; purgeBtn.disabled = true;
+    purgeStatus.style.color = ''; purgeStatus.textContent = '';
+    setTimeout(() => purgeInput.focus(), 30);
+  }
+  function closePurge() { purgeModal.hidden = true; }
+
+  document.getElementById('purge-btn').addEventListener('click', openPurge);
+  document.getElementById('purge-close').addEventListener('click', closePurge);
+  document.getElementById('purge-cancel').addEventListener('click', closePurge);
+  purgeModal.addEventListener('click', (e) => { if (e.target === purgeModal) closePurge(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !purgeModal.hidden) closePurge(); });
+  purgeInput.addEventListener('input', () => { purgeBtn.disabled = purgeInput.value !== 'DESTROY'; });
+
+  purgeBtn.addEventListener('click', async () => {
+    if (!activeSwitch) return;
+    purgeBtn.disabled = true;
+    purgeStatus.style.color = 'var(--ink-soft)';
+    purgeStatus.textContent = 'destroying payload…';
     try {
       await SB.api('/api/switches/' + activeSwitch.id, { method: 'DELETE' });
-      location.reload();
+      purgeStatus.style.color = 'var(--accent-2)';
+      purgeStatus.textContent = 'done. reloading…';
+      setTimeout(() => location.reload(), 800);
     } catch (e) {
-      alert('failed: ' + e.message);
+      purgeStatus.style.color = 'var(--accent)';
+      purgeStatus.textContent = 'failed: ' + e.message;
+      purgeBtn.disabled = false;
     }
   });
+
+  async function loadActivity(switchId) {
+    const list = document.getElementById('recent-list');
+    try {
+      const r = await SB.api('/api/switches/' + switchId + '/activity');
+      const events = r.events || [];
+      if (!events.length) { list.innerHTML = '<div class="t-soft">no activity yet</div>'; return; }
+      list.innerHTML = '';
+      for (const e of events) {
+        const row = document.createElement('div');
+        row.className = 'recent-row recent-' + e.kind;
+        row.innerHTML =
+          '<span class="recent-label">' + e.label + '</span>' +
+          '<span class="recent-time t-faint">' + SB.timeAgo(e.at) + '</span>';
+        list.appendChild(row);
+      }
+    } catch {
+      list.innerHTML = '<div class="t-soft">—</div>';
+    }
+  }
 
   async function refreshPasskeyPanel() {
     try {

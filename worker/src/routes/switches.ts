@@ -135,6 +135,38 @@ switches.get('/:id', async (c) => {
   return c.json({ switch: sw });
 });
 
+// Recent activity for the dashboard RECENT panel: switch creation, recipient
+// enrollment, last few check-ins. Combined client-side in the response so the
+// dashboard doesn't need three separate fetches.
+switches.get('/:id/activity', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const sw = await c.env.DB.prepare(
+    `SELECT created_at, status FROM switches WHERE id = ? AND user_id = ?`,
+  ).bind(id, userId).first<{ created_at: number; status: string }>();
+  if (!sw) return c.json({ error: 'not found' }, 404);
+
+  const recipient = await c.env.DB.prepare(
+    `SELECT enrolled_at, test_fire_confirmed_at FROM recipients WHERE switch_id = ?`,
+  ).bind(id).first<{ enrolled_at: number | null; test_fire_confirmed_at: number | null }>();
+
+  const { results: checkinRows } = await c.env.DB.prepare(
+    `SELECT kind, at FROM checkins WHERE switch_id = ? ORDER BY at DESC LIMIT 5`,
+  ).bind(id).all<{ kind: string; at: number }>();
+
+  const events: Array<{ at: number; kind: string; label: string }> = [];
+  events.push({ at: sw.created_at, kind: 'created', label: 'switch created' });
+  if (recipient?.enrolled_at) events.push({ at: recipient.enrolled_at, kind: 'enrolled', label: 'recipient enrolled' });
+  if (recipient?.test_fire_confirmed_at) events.push({ at: recipient.test_fire_confirmed_at, kind: 'armed', label: 'switch armed' });
+  for (const r of checkinRows ?? []) {
+    const label = r.kind === 'defuse' ? 'checked in' : r.kind === 'duress' ? 'duress check-in' : 'test fire';
+    events.push({ at: r.at, kind: r.kind, label });
+  }
+
+  events.sort((a, b) => b.at - a.at);
+  return c.json({ events: events.slice(0, 6) });
+});
+
 // Finalize: user provides the encrypted shareB blob (ECIES under recipient pubkey).
 // Recipient must already be enrolled. After this, the switch arms.
 switches.post('/:id/finalize', async (c) => {

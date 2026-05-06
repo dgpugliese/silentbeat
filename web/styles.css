@@ -191,6 +191,21 @@ a:hover { color: var(--accent-2); }
   margin-top: 8px;
 }
 
+.recent-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed transparent;
+}
+.recent-row + .recent-row { border-top: 1px dashed var(--ink-faint); }
+.recent-label { color: var(--ink); }
+.recent-time { font-family: var(--mono); font-size: 11px; }
+.recent-defuse .recent-label { color: var(--accent-2); }
+.recent-duress .recent-label,
+.recent-armed .recent-label { color: var(--accent-3); }
+.recent-created .recent-label { color: var(--ink-soft); }
+
 .hero {
   position: relative;
   max-width: 720px;

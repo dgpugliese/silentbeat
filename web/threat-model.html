@@ -2,9 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>SilentBeat — Threat model</title>
 <link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -34,6 +41,7 @@
 
     <h2 class="h-hand">Actors and what we defend against.</h2>
 
+    <div class="threat-table-wrap">
     <table class="threat-table">
       <thead>
         <tr><th>actor</th><th>defended</th><th>residual risk</th></tr>
@@ -86,6 +94,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
 
     <h2 class="h-hand">What happens if Cloudflare goes down.</h2>
     <p>SilentBeat runs entirely on Cloudflare — Workers, Durable Objects, D1, R2. A region-wide Cloudflare outage at expiry time means your timer fires late or not at all. We do not run a hot standby on a second cloud. The Durable Object holding your timer's <span class="t-mono">setAlarm()</span> resumes at the next available moment; the cron sweeper catches anything missed within ~5 minutes of recovery. For most use cases this is fine. For a use case where minute-precision matters at the edge of a multi-hour outage, SilentBeat is the wrong tool.</p>

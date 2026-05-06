@@ -246,26 +246,33 @@
     try {
       const enc = new TextEncoder();
       const { blob, K } = await SB.encryptPayload(enc.encode(s.payload));
-      status.innerHTML += '<div class="t-soft">→ uploading…</div>';
+      status.innerHTML += '<div class="t-soft">→ splitting key (shareA stays with us, shareB stays with you until your recipient enrolls)…</div>';
+      const { shareA, shareB } = SB.splitKey(K);
+      status.innerHTML += '<div class="t-soft">→ uploading ciphertext + shareA…</div>';
       const r = await SB.api('/api/switches', {
         method: 'POST',
         body: JSON.stringify({
           payloadCiphertextB64: SB.bytesToB64(blob),
           payloadSizeBytes: blob.length,
-          payloadKeyB64: SB.bytesToB64(K),
+          shareAB64: SB.bytesToB64(shareA),
           recipientEmail: s.recipientEmail,
           timerSeconds: s.timerSeconds,
           defusePin: s.defusePin,
           duressPin: s.duressPin,
         }),
       });
+      // Stash shareB locally; finalize.html will pick it up after recipient enrolls.
+      SB.stashShareB(r.switchId, shareB);
+      const finalizeUrl = '/finalize.html?id=' + r.switchId;
       status.innerHTML +=
         '<div style="color: var(--accent-2)">→ switch created · id ' + r.switchId + '</div>' +
-        '<div class="t-soft">→ enrollment email sent to ' + s.recipientEmail + '</div>';
+        '<div class="t-soft">→ enrollment email sent to ' + s.recipientEmail + '</div>' +
+        '<div class="t-soft">→ shareB stashed in this browser (localStorage). do not clear browser data until your recipient has enrolled.</div>';
       if (r.dev_enrollment_url) {
-        status.innerHTML += '<div style="margin-top:8px"><a href="' + r.dev_enrollment_url + '">[dev] enrollment link</a></div>';
+        status.innerHTML += '<div style="margin-top:8px"><a href="' + r.dev_enrollment_url + '" target="_blank">[dev] enrollment link (open in new tab)</a></div>';
       }
-      status.innerHTML += '<div style="margin-top:8px"><a href="/dashboard.html">→ go to dashboard</a></div>';
+      status.innerHTML +=
+        '<div style="margin-top:12px"><a class="btn btn-primary btn-sm" href="' + finalizeUrl + '">go to finalize page →</a></div>';
     } catch (e) {
       status.innerHTML = '<div style="color: var(--accent)">error: ' + e.message + '</div>';
       nextBtn.disabled = false;

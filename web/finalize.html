@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SilentBeat — Finalize switch</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-app">
+
+  <nav class="appnav">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="appnav-links">
+      <a href="/dashboard.html" class="active">dashboard</a>
+      <a href="/log.html">log</a>
+      <a href="/settings">settings</a>
+    </div>
+  </nav>
+
+  <h1 class="h-hand" style="font-size: 36px; margin: 0;">finalize switch.</h1>
+  <svg class="underline-sketch" width="120" height="10" viewBox="0 0 120 10" aria-hidden="true">
+    <path d="M2 6 Q 30 1, 60 5 T 118 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+  </svg>
+  <p class="t-soft" style="font-size: 14px; margin-top: 8px;">
+    Once your recipient enrolls and gives us their public key, we encrypt your half
+    of the payload key to it — locally, in this browser — and the switch arms.
+  </p>
+
+  <section class="wobble countdown-card" style="text-align: left; padding: 22px;">
+    <div class="t-mono t-soft" style="font-size: 11px; letter-spacing: 0.18em;">STATUS</div>
+    <div id="status-line" class="h-hand" style="font-size: 28px; margin-top: 6px;">loading…</div>
+    <div id="status-detail" class="t-soft" style="font-size: 13px; margin-top: 4px;"></div>
+
+    <hr class="hr-sketch" />
+
+    <div class="t-mono" style="font-size: 12px; line-height: 1.85;" id="checklist">
+      <div>→ switch created — <span id="ck-create" class="t-faint">checking…</span></div>
+      <div>→ recipient enrolled — <span id="ck-enroll" class="t-faint">checking…</span></div>
+      <div>→ shareB encrypted to recipient pubkey — <span id="ck-finalize" class="t-faint">pending</span></div>
+      <div>→ switch armed — <span id="ck-arm" class="t-faint">pending</span></div>
+    </div>
+
+    <div id="actions" style="margin-top: 18px;"></div>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+<script>
+  SB.requireAuth();
+  const switchId = new URLSearchParams(location.search).get('id');
+  if (!switchId) {
+    document.getElementById('status-line').textContent = 'missing switch id.';
+  }
+
+  const statusLine = document.getElementById('status-line');
+  const statusDetail = document.getElementById('status-detail');
+  const ckCreate = document.getElementById('ck-create');
+  const ckEnroll = document.getElementById('ck-enroll');
+  const ckFinalize = document.getElementById('ck-finalize');
+  const ckArm = document.getElementById('ck-arm');
+  const actions = document.getElementById('actions');
+
+  let pollHandle = null;
+
+  function ok(el, label) { el.textContent = label || 'done'; el.style.color = 'var(--accent-2)'; }
+  function pending(el, label) { el.textContent = label || 'waiting'; el.style.color = 'var(--ink-soft)'; }
+  function fail(el, label) { el.textContent = label; el.style.color = 'var(--accent)'; }
+
+  async function tick() {
+    let r;
+    try {
+      r = await SB.api('/api/switches/' + switchId);
+    } catch (e) {
+      statusLine.textContent = 'error';
+      statusDetail.textContent = e.message;
+      return false;
+    }
+    const sw = r.switch || {};
+    ok(ckCreate);
+
+    if (sw.status === 'armed') {
+      ok(ckEnroll, 'enrolled'); ok(ckFinalize, 'submitted'); ok(ckArm, 'armed');
+      statusLine.textContent = 'armed.';
+      statusDetail.textContent = 'switch is live. timer is running.';
+      actions.innerHTML = '<a class="btn btn-primary" href="/dashboard.html">→ dashboard</a>';
+      SB.clearShareB(switchId);
+      return true;
+    }
+    if (sw.status === 'released' || sw.status === 'duress_purged' || sw.status === 'user_purged') {
+      statusLine.textContent = sw.status;
+      statusDetail.textContent = 'this switch is no longer pending.';
+      actions.innerHTML = '<a class="btn" href="/dashboard.html">→ dashboard</a>';
+      return true;
+    }
+
+    if (sw.recipient_status === 'enrolled' && sw.pubkey_jwk_json) {
+      ok(ckEnroll, 'enrolled');
+      statusLine.textContent = 'ready to finalize.';
+      statusDetail.textContent = 'your recipient is enrolled. one click to finish.';
+      actions.innerHTML = '<button id="finalize-btn" class="btn btn-primary" type="button">finalize and arm switch →</button>';
+      document.getElementById('finalize-btn').addEventListener('click', finalize);
+      return false;
+    }
+    pending(ckEnroll, 'waiting on recipient…');
+    statusLine.textContent = 'waiting on recipient enrollment.';
+    statusDetail.textContent = 'forward them the enrollment link from the create page if needed.';
+    return false;
+  }
+
+  async function finalize() {
+    const btn = document.getElementById('finalize-btn');
+    btn.disabled = true; btn.textContent = 'finalizing…';
+    try {
+      const r = await SB.api('/api/switches/' + switchId);
+      const pubkeyJwk = JSON.parse(r.switch.pubkey_jwk_json);
+      const shareB = SB.readShareB(switchId);
+      if (!shareB) {
+        statusLine.textContent = 'shareB lost.';
+        statusDetail.innerHTML = 'your browser has no record of shareB for this switch. it must have been generated on a different device or after a localStorage wipe. without it, this switch can never arm. <a href="#" id="purge">destroy it</a> and start over.';
+        document.getElementById('purge').addEventListener('click', async (e) => {
+          e.preventDefault();
+          await SB.api('/api/switches/' + switchId, { method: 'DELETE' });
+          location.replace('/dashboard.html');
+        });
+        return;
+      }
+
+      const envelope = await SB.eciesEncrypt(shareB, pubkeyJwk);
+      ok(ckFinalize, 'encrypted');
+      await SB.api('/api/switches/' + switchId + '/finalize', {
+        method: 'POST',
+        body: JSON.stringify({ encryptedShareBJson: JSON.stringify(envelope) }),
+      });
+      ok(ckArm, 'armed');
+      statusLine.textContent = 'armed.';
+      statusDetail.textContent = 'timer is running.';
+      SB.clearShareB(switchId);
+      actions.innerHTML = '<a class="btn btn-primary" href="/dashboard.html">→ dashboard</a>';
+      if (pollHandle) clearInterval(pollHandle);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'finalize and arm switch →';
+      fail(ckFinalize, 'failed');
+      statusDetail.textContent = 'finalize error: ' + (e.body?.error || e.message);
+    }
+  }
+
+  (async () => {
+    const done = await tick();
+    if (!done) pollHandle = setInterval(async () => {
+      const d = await tick();
+      if (d) clearInterval(pollHandle);
+    }, 4000);
+  })();
+</script>
+
+</body>
+</html>

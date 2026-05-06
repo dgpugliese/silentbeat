@@ -35,12 +35,12 @@ new_sqlite_classes = ["SwitchTimer"]
 crons = ["*/5 * * * *"]
 
 [vars]
-ENVIRONMENT = "staging"
-PUBLIC_BASE_URL = "https://silentbeat-staging.the-it-visionary.workers.dev"
-RP_ID = "silentbeat-staging.the-it-visionary.workers.dev"
+ENVIRONMENT = "production"
+PUBLIC_BASE_URL = "https://silentbeat.app"
+RP_ID = "silentbeat.app"
 RP_NAME = "SilentBeat"
-RP_ORIGIN = "https://silentbeat-staging.the-it-visionary.workers.dev"
-EMAIL_FROM = "SilentBeat <noreply@silentbeat.test>"
+RP_ORIGIN = "https://silentbeat.app"
+EMAIL_FROM = "SilentBeat <noreply@silentbeat.app>"
 # Secrets (set with `wrangler secret put NAME`):
 #   MASTER_KEY        — 32 bytes b64, AES-GCM master for KMS-style DEK wrapping
 #   LOG_SIGNING_KEY   — Ed25519 PKCS8 b64, signs every audit_log entry

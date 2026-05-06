@@ -55,10 +55,15 @@ export function b64ToBytes(s: string): Uint8Array<ArrayBuffer> {
 // providing meaningful work per guess. Brute-force defense is the rate
 // limiter (5/hr/switch); argon's role is to slow a DB-dump attacker.
 
+// Library-recommended params for Workers (per argon2-wasm-edge README).
+// iter * memory = 131,072 KB-iter, which the author has tested under
+// Cloudflare Worker CPU limits. PIN entropy is low (6 digits) and the rate
+// limiter is the primary online defense; argon's role is to slow DB-dump
+// brute force, where the defender's params don't decisively beat GPUs anyway.
 const ARGON_PARAMS = {
   parallelism: 1,
-  iterations: 64,
-  memorySize: 4096, // 4 MiB
+  iterations: 256,
+  memorySize: 512, // KiB
   hashLength: 32,
   outputType: 'encoded' as const,
 };

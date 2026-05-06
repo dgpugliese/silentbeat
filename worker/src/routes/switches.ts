@@ -62,7 +62,7 @@ switches.post('/', async (c) => {
   const flip = Math.random() < 0.5;
   const pair = flip ? [duress, defuse] : [defuse, duress];
   const duressSlot = flip ? 0 : 1;
-  const pinHashSet = JSON.stringify({ hashes: pair.map((p) => p.hash), salts: pair.map((p) => p.salt) });
+  const pinHashSet = JSON.stringify({ hashes: pair });
 
   await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
 

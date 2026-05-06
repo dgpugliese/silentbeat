@@ -94,8 +94,11 @@
 
   function setActive(sw) {
     activeSwitch = sw;
+    const pendingEnroll = sw.status === 'pending' && sw.recipient_status !== 'enrolled';
+    const readyFinalize = sw.status === 'pending' && sw.recipient_status === 'enrolled';
     const label = sw.status === 'armed' ? 'your switch is armed.' :
-                  sw.status === 'pending' ? 'awaiting recipient enrollment…' :
+                  pendingEnroll ? 'awaiting recipient enrollment…' :
+                  readyFinalize ? 'recipient enrolled — ready to finalize.' :
                   sw.status === 'released' ? 'switch released.' :
                   sw.status === 'duress_purged' ? 'switch released (duress).' :
                   sw.status === 'user_purged' ? 'switch destroyed.' :
@@ -104,12 +107,20 @@
     document.getElementById('status-sub').textContent =
       'last check-in ' + SB.timeAgo(sw.last_checkin_at) + ' · timer ' + Math.round(sw.timer_seconds / 86400) + 'd';
     if (sw.status === 'armed') document.getElementById('alive-pill').style.display = 'flex';
-    document.getElementById('expires-at').textContent = SB.fmtUTC(sw.expiry_at);
-    document.getElementById('checkin-btn').href = '/checkin.html?id=' + sw.id;
-    document.getElementById('checkin-btn').style.display = sw.status === 'armed' ? '' : 'none';
+    document.getElementById('expires-at').textContent = sw.status === 'armed' ? SB.fmtUTC(sw.expiry_at) : '—';
+
+    const btn = document.getElementById('checkin-btn');
+    if (sw.status === 'armed') {
+      btn.href = '/checkin.html?id=' + sw.id; btn.textContent = 'check in →'; btn.style.display = '';
+    } else if (sw.status === 'pending') {
+      btn.href = '/finalize.html?id=' + sw.id;
+      btn.textContent = readyFinalize ? 'finalize switch →' : 'view finalize page →';
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+    }
     document.getElementById('purge-btn').dataset.id = sw.id;
-    tick();
-    tickHandle = setInterval(tick, 1000);
+    if (sw.status === 'armed') { tick(); tickHandle = setInterval(tick, 1000); }
   }
 
   function tick() {

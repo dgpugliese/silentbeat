@@ -3,6 +3,11 @@ import { append } from '../lib/auditlog';
 import { aeadDecrypt, bytesToB64, randomBytes, sha256Hex } from '../lib/crypto';
 import { sendEmail } from '../lib/email';
 
+// Phase 6: release ships shareA + the recipient-encrypted shareB blob and the
+// payload URL. Recipient combines both shares locally (XOR) to reconstruct K and
+// decrypts the payload. The server cannot decrypt unilaterally — this is the
+// trust-model claim made on the landing page.
+
 const enc = new TextEncoder();
 
 export class SwitchTimer {
@@ -54,14 +59,14 @@ export class SwitchTimer {
 
   async release(switchId: string): Promise<{ released: boolean; reason?: string }> {
     const sw = await this.env.DB.prepare(
-      `SELECT s.id, s.status, s.payload_r2_key, s.share_a, s.payload_key_wrapped,
+      `SELECT s.id, s.status, s.payload_r2_key, s.share_a,
               r.email_ct, r.share_b_to_recipient
        FROM switches s
        LEFT JOIN recipients r ON r.switch_id = s.id
        WHERE s.id = ?`,
     ).bind(switchId).first<{
       id: string; status: string; payload_r2_key: string;
-      share_a: ArrayBuffer; payload_key_wrapped: ArrayBuffer | null;
+      share_a: ArrayBuffer;
       email_ct: ArrayBuffer | null; share_b_to_recipient: string | null;
     }>();
 
@@ -86,9 +91,7 @@ export class SwitchTimer {
       await aeadDecrypt(this.env, new Uint8Array(sw.email_ct), enc.encode(switchId)),
     );
     const shareAB64 = bytesToB64(new Uint8Array(sw.share_a));
-    const payloadKeyB64 = sw.payload_key_wrapped
-      ? bytesToB64(await aeadDecrypt(this.env, new Uint8Array(sw.payload_key_wrapped), enc.encode(switchId)))
-      : '(unavailable — switch predates payload-key wrapping)';
+    const encryptedShareB = sw.share_b_to_recipient!; // checked above
 
     // One-time download token, 7-day TTL
     const tokenRaw = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
@@ -97,31 +100,46 @@ export class SwitchTimer {
       expirationTtl: 7 * 86400,
     });
     const downloadUrl = `${this.env.PUBLIC_BASE_URL}/api/release/${switchId}/payload?t=${tokenRaw}`;
+    const decryptUrl =
+      `${this.env.PUBLIC_BASE_URL}/recipient.html` +
+      `?sid=${encodeURIComponent(switchId)}` +
+      `&url=${encodeURIComponent(downloadUrl)}` +
+      `&a=${encodeURIComponent(shareAB64)}` +
+      `&b=${encodeURIComponent(encryptedShareB)}`;
     const verifyUrl = `${this.env.PUBLIC_BASE_URL}/log.html`;
 
     const text = [
       'A SilentBeat message has been released to you.',
       '',
-      `The user who set this up did not check in before their timer expired.`,
+      'The user who set this up did not check in before their timer expired.',
       'Their wishes were that you receive this message in that case.',
       '',
-      'Decrypt steps:',
+      '── Decrypt with one click ──',
+      decryptUrl,
       '',
-      '1. PAYLOAD AES-GCM KEY (32 bytes, base64) — keep this local:',
-      payloadKeyB64,
+      '── Or do it manually ──',
       '',
-      '2. ENCRYPTED PAYLOAD — download once, save locally:',
+      'You will need your rescue file (the JSON the user sent you when you enrolled).',
+      'Open https://silentbeat.app/recipient.html and paste:',
+      '',
+      '1. SERVER SHARE A (32 bytes, base64):',
+      shareAB64,
+      '',
+      '2. ENCRYPTED RECIPIENT SHARE B (JSON, ECIES under your enrollment pubkey):',
+      encryptedShareB,
+      '',
+      '3. ENCRYPTED PAYLOAD URL (download once, save locally):',
       downloadUrl,
       '',
-      '3. Decrypt locally with the recipient.html → "decrypt" tool, or any AES-GCM-256',
-      '   tool that reads iv (first 12 bytes) || ciphertext || tag (last 16 bytes).',
+      'The browser:',
+      '  - reads your rescue private key',
+      '  - decrypts share B with ECDH+AES-GCM',
+      '  - XORs share A and share B → original AES key K',
+      '  - downloads the encrypted payload, decrypts with K',
+      'SilentBeat never sees the combined key.',
       '',
       `Verify this release in the public log: ${verifyUrl}`,
       `Switch ID for cross-reference: ${switchId}`,
-      '',
-      '— diagnostic fields below; ignore unless asked —',
-      `server share A (b64): ${shareAB64}`,
-      `recipient share B (encrypted to enrollment pubkey): ${sw.share_b_to_recipient ?? '(none)'}`,
     ].join('\n');
 
     const html = `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;

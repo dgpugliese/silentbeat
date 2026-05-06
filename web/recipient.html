@@ -22,14 +22,21 @@
 
   <h1 class="h-hand" style="font-size: 32px; margin: 0;">decrypt the released message.</h1>
   <p class="t-soft" style="font-size: 14px; margin-top: 6px;">
-    Everything happens in your browser. Paste the key and download URL from the release email
-    (or use the link from the email — it should fill these in automatically).
-    Nothing about you reading this is logged on our server.
+    Everything happens in your browser. Two halves of the key combine here:
+    SilentBeat&rsquo;s half (share A, sent in your release email) and your half
+    (share B, encrypted to your enrollment public key — only your rescue file
+    decrypts it). The combined key never leaves this page.
   </p>
 
   <section class="wobble verify-card" style="padding: 16px;">
-    <div class="t-mono t-faint" style="font-size: 11px;">// payload AES-GCM key (base64, 32 bytes)</div>
-    <input id="key" class="field t-mono" type="text" placeholder="paste from email" style="margin-top: 6px;" />
+    <div class="t-mono t-faint" style="font-size: 11px;">// rescue file (the JSON you saved when you enrolled)</div>
+    <input id="rescue-file" type="file" accept="application/json,.json" class="field" style="margin-top: 6px;" />
+
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// share A — server share (base64)</div>
+    <input id="share-a" class="field t-mono" type="text" placeholder="paste from release email" style="margin-top: 6px;" />
+
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// encrypted share B — JSON envelope</div>
+    <textarea id="share-b" class="field t-mono" rows="3" placeholder='{"v":1,"ephPub":...,"iv":"...","ct":"..."}' style="margin-top: 6px;"></textarea>
 
     <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// encrypted payload URL</div>
     <input id="url" class="field t-mono" type="text" placeholder="https://…/api/release/.../payload?t=..." style="margin-top: 6px;" />
@@ -63,7 +70,8 @@
 <script src="/app.js"></script>
 <script>
   const params = new URLSearchParams(location.search);
-  if (params.get('key')) document.getElementById('key').value = params.get('key');
+  if (params.get('a')) document.getElementById('share-a').value = params.get('a');
+  if (params.get('b')) document.getElementById('share-b').value = params.get('b');
   if (params.get('url')) document.getElementById('url').value = params.get('url');
 
   const status = document.getElementById('status');
@@ -72,27 +80,53 @@
   const copyBtn = document.getElementById('copy-btn');
   const dlLink = document.getElementById('download-link');
 
+  async function readRescueFile(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        try { resolve(JSON.parse(r.result)); }
+        catch (e) { reject(new Error('rescue file is not valid JSON')); }
+      };
+      r.onerror = () => reject(new Error('could not read rescue file'));
+      r.readAsText(file);
+    });
+  }
+
   document.getElementById('decrypt-btn').addEventListener('click', async () => {
-    const keyB64 = (document.getElementById('key').value || '').trim();
+    const fileInput = document.getElementById('rescue-file');
+    const shareAB64 = (document.getElementById('share-a').value || '').trim();
+    const shareBEnvelopeRaw = (document.getElementById('share-b').value || '').trim();
     const url = (document.getElementById('url').value || '').trim();
-    if (!keyB64 || !url) { status.textContent = 'paste the key AND the URL.'; return; }
-    status.textContent = 'fetching encrypted payload…';
+
+    if (!fileInput.files[0]) { status.textContent = 'select your rescue file.'; return; }
+    if (!shareAB64 || !shareBEnvelopeRaw || !url) { status.textContent = 'paste shareA, encrypted shareB, AND the URL.'; return; }
+
+    status.style.color = 'var(--ink-soft)';
     outputCard.style.display = 'none';
 
     try {
+      status.textContent = 'reading rescue file…';
+      const rescue = await readRescueFile(fileInput.files[0]);
+      if (!rescue.privateKeyJwk) throw new Error('rescue file has no privateKeyJwk');
+
+      status.textContent = 'decrypting share B with your rescue key…';
+      const envelope = JSON.parse(shareBEnvelopeRaw);
+      const shareB = await SB.eciesDecrypt(envelope, rescue.privateKeyJwk);
+      if (shareB.length !== 32) throw new Error('decrypted shareB is wrong length: ' + shareB.length);
+
+      const shareA = SB.b64ToBytes(shareAB64);
+      if (shareA.length !== 32) throw new Error('shareA is wrong length: ' + shareA.length);
+
+      status.textContent = 'combining shares (XOR) → payload key…';
+      const K = SB.combineShares(shareA, shareB);
+
+      status.textContent = 'fetching encrypted payload…';
       const r = await fetch(url);
       if (!r.ok) throw new Error('fetch failed: ' + r.status);
       const blob = new Uint8Array(await r.arrayBuffer());
-      if (blob.length < 28) throw new Error('payload too short');
 
-      const iv = blob.subarray(0, 12);
-      const ct = blob.subarray(12);
-
-      const keyBytes = SB.b64ToBytes(keyB64);
-      if (keyBytes.length !== 32) throw new Error('key must be 32 bytes (got ' + keyBytes.length + ')');
-      const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
-      status.textContent = 'decrypting in your browser…';
-      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+      status.textContent = 'decrypting payload locally…';
+      const pt = await SB.decryptPayload(blob, K);
       const text = new TextDecoder().decode(pt);
 
       output.textContent = text;

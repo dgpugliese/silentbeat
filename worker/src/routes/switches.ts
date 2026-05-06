@@ -12,8 +12,12 @@ switches.use('*', requireUser);
 switches.get('/', async (c) => {
   const userId = c.get('userId');
   const { results } = await c.env.DB.prepare(
-    `SELECT id, status, expiry_at, last_checkin_at, timer_seconds, created_at
-     FROM switches WHERE user_id = ? ORDER BY created_at DESC`,
+    `SELECT s.id, s.status, s.expiry_at, s.last_checkin_at, s.timer_seconds, s.created_at,
+            r.status AS recipient_status
+     FROM switches s
+     LEFT JOIN recipients r ON r.switch_id = s.id
+     WHERE s.user_id = ?
+     ORDER BY s.created_at DESC`,
   ).bind(userId).all();
   return c.json({ switches: results ?? [] });
 });
@@ -23,7 +27,7 @@ switches.post('/', async (c) => {
   const body = await c.req.json<{
     payloadCiphertextB64: string;
     payloadSizeBytes: number;
-    payloadKeyB64: string;     // 32-byte AES-GCM key, client-generated; Phase 6 will split
+    shareAB64: string;          // 32-byte client-generated share. K = shareA XOR shareB.
     recipientEmail: string;
     timerSeconds: number;
     defusePin: string;
@@ -39,18 +43,18 @@ switches.post('/', async (c) => {
   if (body.defusePin === body.duressPin) {
     return c.json({ error: 'defuse and duress PINs must differ' }, 400);
   }
-  if (!body.payloadKeyB64) {
-    return c.json({ error: 'payloadKeyB64 required' }, 400);
+  if (!body.shareAB64) {
+    return c.json({ error: 'shareAB64 required' }, 400);
+  }
+  const shareABytes = b64ToBytes(body.shareAB64);
+  if (shareABytes.length !== 32) {
+    return c.json({ error: 'shareAB64 must be 32 bytes' }, 400);
   }
 
   const switchId = ulid();
   const recipientId = ulid();
   const payloadKey = `payloads/${switchId}`;
-  const shareA = randomBytes(32);
 
-  // One-time enrollment token: plaintext returned to the user (and emailed to
-  // the recipient in Phase 4); only the hash is stored. Without this token the
-  // /enroll endpoint refuses, so a recipientId leak alone can't hijack enrollment.
   const enrollmentToken = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
   const enrollmentTokenHash = await sha256Hex(enrollmentToken);
 
@@ -62,12 +66,8 @@ switches.post('/', async (c) => {
 
   await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
 
-  // Encrypt recipient email under the master key; bind to switch ID via AAD.
   const emailBlob = await aeadEncrypt(c.env, new TextEncoder().encode(body.recipientEmail), new TextEncoder().encode(switchId));
-  // Wrap the duress-slot bit so a DB-only dump can't tell defuse from duress.
   const duressBlob = await aeadEncrypt(c.env, new Uint8Array([duressSlot]), new TextEncoder().encode(switchId));
-  // Wrap the client's payload AES key under the master KEK. Phase 6: replace with split-key.
-  const payloadKeyWrapped = await aeadEncrypt(c.env, b64ToBytes(body.payloadKeyB64), new TextEncoder().encode(switchId));
 
   const now = Date.now();
   const expiry = now + body.timerSeconds * 1000;
@@ -75,19 +75,18 @@ switches.post('/', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO switches
-       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped, payload_key_wrapped,
+       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot, duress_slot_wrapped,
         expiry_at, timer_seconds, last_checkin_at, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareA, pinHashSet,
-           // Legacy `duress_slot` int column kept NOT NULL by 0001; populated with dummy
-           // (real value lives wrapped). 0002 will drop this column once 0001 is rebased pre-deploy.
-           0, duressBlob, payloadKeyWrapped,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    ).bind(switchId, userId, payloadKey, body.payloadSizeBytes, shareABytes, pinHashSet,
+           // Legacy `duress_slot` int column kept for schema compat; real value lives wrapped.
+           0, duressBlob,
            expiry, body.timerSeconds, now, now),
     c.env.DB.prepare(
       `INSERT INTO recipients (id, switch_id, email_ct, email_iv, email_dek_wrapped, enrollment_token_hash, status)
        VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
     ).bind(recipientId, switchId, emailBlob,
-           new Uint8Array(0), // iv inlined into emailBlob; column kept for schema compat
+           new Uint8Array(0),
            new Uint8Array(0),
            enrollmentTokenHash),
   ]);
@@ -100,9 +99,10 @@ switches.post('/', async (c) => {
     subject: 'Someone has named you as a SilentBeat recipient',
     text: [
       'A SilentBeat user has set up a switch and named you as the recipient.',
-      'A SilentBeat switch is a "dead-man\'s switch" — if the user stops checking in, an encrypted message is delivered to you.',
       '',
-      'Before any switch can be armed, you have to enroll. Enrollment generates a keypair in your browser and gives you a rescue file. Save the rescue file — without it the message can never be decrypted.',
+      'Before any switch can be armed, you have to enroll. Enrollment generates',
+      'a keypair in your browser and gives you a rescue file. Save the rescue',
+      'file — without it the message can never be decrypted.',
       '',
       'Enrollment link (single use):',
       enrollmentUrl,
@@ -111,15 +111,14 @@ switches.post('/', async (c) => {
     ].join('\n'),
     html: `<p>A SilentBeat user named you as the recipient of a dead-man's-switch message.</p>
 <p><a href="${enrollmentUrl}">Enroll now</a></p>
-<p>Enrollment generates a keypair in your browser and gives you a rescue file. Save the rescue file — without it the message can never be decrypted.</p>
-<p>If this seems wrong, ignore this email; the switch will not arm until you enroll.</p>`,
+<p>Enrollment generates a keypair in your browser and gives you a rescue file. Save it — without it the message can never be decrypted.</p>`,
   });
 
   return c.json({
     switchId,
     recipientId,
     status: 'pending',
-    enrollmentRequired: true,
+    needsFinalize: true,
     ...(c.env.ENVIRONMENT === 'development' ? { dev_enrollment_url: enrollmentUrl } : {}),
   });
 });
@@ -128,11 +127,53 @@ switches.get('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
   const sw = await c.env.DB.prepare(
-    `SELECT id, status, expiry_at, last_checkin_at, timer_seconds, payload_size_bytes, created_at
-     FROM switches WHERE id = ? AND user_id = ?`,
+    `SELECT s.id, s.status, s.expiry_at, s.last_checkin_at, s.timer_seconds, s.payload_size_bytes, s.created_at,
+            r.id AS recipient_id, r.status AS recipient_status, r.pubkey_jwk_json
+     FROM switches s
+     LEFT JOIN recipients r ON r.switch_id = s.id
+     WHERE s.id = ? AND s.user_id = ?`,
   ).bind(id, userId).first();
   if (!sw) return c.json({ error: 'not found' }, 404);
   return c.json({ switch: sw });
+});
+
+// Finalize: user provides the encrypted shareB blob (ECIES under recipient pubkey).
+// Recipient must already be enrolled. After this, the switch arms.
+switches.post('/:id/finalize', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const { encryptedShareBJson } = await c.req.json<{ encryptedShareBJson: string }>();
+  if (!encryptedShareBJson) return c.json({ error: 'encryptedShareBJson required' }, 400);
+
+  const sw = await c.env.DB.prepare(
+    `SELECT id, status, expiry_at FROM switches WHERE id = ? AND user_id = ?`,
+  ).bind(id, userId).first<{ id: string; status: string; expiry_at: number }>();
+  if (!sw) return c.json({ error: 'not found' }, 404);
+  if (sw.status !== 'pending') return c.json({ error: `status_${sw.status}` }, 409);
+
+  const r = await c.env.DB.prepare(
+    `SELECT id, status FROM recipients WHERE switch_id = ?`,
+  ).bind(id).first<{ id: string; status: string }>();
+  if (!r) return c.json({ error: 'recipient row missing' }, 500);
+  if (r.status !== 'enrolled') return c.json({ error: 'recipient_not_enrolled' }, 409);
+
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE recipients SET share_b_to_recipient = ?, status = 'test_confirmed' WHERE id = ?`,
+    ).bind(encryptedShareBJson, r.id),
+    c.env.DB.prepare(
+      `UPDATE switches SET status = 'armed' WHERE id = ? AND status = 'pending'`,
+    ).bind(id),
+  ]);
+
+  const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(id));
+  await stub.fetch('https://do/arm', {
+    method: 'POST',
+    body: JSON.stringify({ switchId: id, expiryAt: sw.expiry_at }),
+  }).catch(() => {});
+
+  await append(c.env, id, 'switch_armed');
+  return c.json({ ok: true, status: 'armed' });
 });
 
 switches.delete('/:id', async (c) => {
@@ -148,7 +189,6 @@ switches.delete('/:id', async (c) => {
     `UPDATE switches SET status = 'user_purged' WHERE id = ?`,
   ).bind(id).run();
 
-  // Cancel DO alarm
   const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(id));
   await stub.fetch('https://do/cancel', { method: 'POST' }).catch(() => {});
 

@@ -16,7 +16,7 @@
       <span class="name">silentbeat</span>
       <span class="blip" aria-hidden="true"></span>
     </a>
-    <span class="stamp-info" id="stamp">step 1 of 3</span>
+    <span class="stamp-info" id="stamp">step 1 of 2</span>
   </header>
   <hr class="hr-sketch" />
 
@@ -49,15 +49,14 @@
   </section>
 
   <section class="wobble verify-card" id="step3" style="padding: 16px; display: none;">
-    <div class="t-mono t-faint" style="font-size: 11px;">// step 3 — submit enrollment</div>
+    <div class="t-mono t-faint" style="font-size: 11px;">// submit enrollment</div>
     <div id="enroll-status" class="t-mono" style="font-size: 13px; line-height: 1.85; margin-top: 8px;"></div>
   </section>
 
   <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
-    Phase 5 note — the recipient&rsquo;s public key is captured but the payload key is
-    currently held server-side under a Workers Secret. Phase 6 will move to true
-    split-key (ECIES of recipient share B under your public key) so the server cannot
-    decrypt unilaterally.
+    Your private key never leaves this browser. The user will encrypt their half of the
+    payload key to your public key (ECIES under P-256) before submitting it. SilentBeat
+    sees the ciphertext but cannot decrypt it without your rescue file.
   </p>
 
   <div class="footer">
@@ -115,7 +114,7 @@
       rescueLink.addEventListener('click', () => { setTimeout(() => { confirmSaved.disabled = false; }, 500); });
 
       step2.style.display = 'block';
-      stamp.textContent = 'step 2 of 3';
+      stamp.textContent = 'step 2 of 2';
     } catch (e) {
       genStatus.textContent = 'failed: ' + e.message;
       genBtn.disabled = false;
@@ -125,25 +124,19 @@
   confirmSaved.addEventListener('click', async () => {
     confirmSaved.disabled = true;
     step3.style.display = 'block';
-    stamp.textContent = 'step 3 of 3';
     enrollStatus.innerHTML = '<div class="t-soft">→ submitting public key…</div>';
 
     try {
-      // Phase 5: server holds payload K under master KEK; share_b_to_recipient is a placeholder.
-      // Phase 6 will replace this with ECIES(shareB, recipientPubkey).
       await SB.api('/api/recipients/' + recipientId + '/enroll', {
         method: 'POST',
         body: JSON.stringify({
           pubkeyJwk: JSON.stringify(pubkeyJwk),
-          shareBToRecipient: 'phase-6-placeholder',
           enrollmentToken,
         }),
       });
-      enrollStatus.innerHTML += '<div class="t-soft">→ confirming test fire…</div>';
-      await SB.api('/api/recipients/' + recipientId + '/test-fire/confirm', { method: 'POST' });
       enrollStatus.innerHTML +=
-        '<div style="color: var(--accent-2)">→ enrolled and confirmed. switch is now ARMED.</div>' +
-        '<div style="margin-top:8px" class="t-soft">You can close this tab. If the user goes silent, you&rsquo;ll receive a release email with the decrypted payload key and a download URL.</div>';
+        '<div style="color: var(--accent-2)">→ enrolled. waiting on the user (switch creator) to finalize.</div>' +
+        '<div style="margin-top:8px" class="t-soft">You can close this tab. The user will see "ready to finalize" on their dashboard. After they finalize, the switch arms. If they go silent, you&rsquo;ll receive a release email; open it to decrypt with this rescue file.</div>';
     } catch (e) {
       enrollStatus.innerHTML = '<div style="color: var(--accent)">error: ' + (e.body?.error || e.message) + '</div>';
     }

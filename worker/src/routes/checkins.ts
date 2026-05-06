@@ -10,8 +10,7 @@ export const checkins = new Hono<{ Bindings: Env; Variables: { userId: string } 
 checkins.use('*', requireUser);
 
 interface PinHashSet {
-  hashes: [string, string];
-  salts: [string, string];
+  hashes: [string, string]; // PHC-encoded (salt + params embedded)
 }
 
 checkins.post('/:id/checkin', async (c) => {
@@ -37,8 +36,8 @@ checkins.post('/:id/checkin', async (c) => {
   }
 
   const set = JSON.parse(sw.pin_hash_set_json) as PinHashSet;
-  const slot0 = await verifyPin(pin, set.hashes[0]!, set.salts[0]!);
-  const slot1 = await verifyPin(pin, set.hashes[1]!, set.salts[1]!);
+  const slot0 = await verifyPin(pin, set.hashes[0]!);
+  const slot1 = await verifyPin(pin, set.hashes[1]!);
   const matchedSlot = slot0 ? 0 : slot1 ? 1 : -1;
   if (matchedSlot === -1) {
     const { locked, recent } = await recordPinFailure(c.env, id, ipHash);

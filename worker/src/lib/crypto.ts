@@ -1,8 +1,14 @@
-// Crypto helpers — Workers WebCrypto + @noble/hashes (pure JS) for Argon2id.
+// Crypto helpers — Workers WebCrypto + argon2-wasm-edge for Argon2id PIN hashing.
 // All key material treated as opaque; never logged.
 
-import { argon2id } from '@noble/hashes/argon2.js';
+import { argon2id as argon2idWasm, argon2Verify, setWASMModules } from 'argon2-wasm-edge';
+// @ts-expect-error wasm module imports are typed by wrangler at build time
+import argon2WASM from 'argon2-wasm-edge/wasm/argon2.wasm';
+// @ts-expect-error
+import blake2bWASM from 'argon2-wasm-edge/wasm/blake2b.wasm';
 import type { Env } from '../index';
+
+setWASMModules({ argon2WASM, blake2bWASM });
 
 const enc = new TextEncoder();
 
@@ -43,20 +49,27 @@ export function b64ToBytes(s: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-// === Argon2id PIN hashing (pure JS via @noble/hashes — runs in Workers) ===
-// Params: m=8192 KiB (8 MiB), t=3, p=1, 32-byte output.
+// === Argon2id PIN hashing (WASM via argon2-wasm-edge) ===
+// Output is PHC-encoded: salt + params are embedded in the hash string.
+// Iterations + memory tuned to be safe under Workers CPU limits while still
+// providing meaningful work per guess. Brute-force defense is the rate
+// limiter (5/hr/switch); argon's role is to slow a DB-dump attacker.
 
-const ARGON_PARAMS = { m: 8192, t: 3, p: 1, dkLen: 32 } as const;
+const ARGON_PARAMS = {
+  parallelism: 1,
+  iterations: 64,
+  memorySize: 4096, // 4 MiB
+  hashLength: 32,
+  outputType: 'encoded' as const,
+};
 
-export async function hashPin(pin: string, saltB64?: string): Promise<{ hash: string; salt: string }> {
-  const salt = saltB64 ? b64ToBytes(saltB64) : randomBytes(16);
-  const out = argon2id(pin, salt, ARGON_PARAMS);
-  return { hash: bytesToB64(out), salt: bytesToB64(salt) };
+export async function hashPin(pin: string): Promise<string> {
+  const salt = randomBytes(16);
+  return argon2idWasm({ ...ARGON_PARAMS, password: pin, salt });
 }
 
-export async function verifyPin(pin: string, expectedHashB64: string, saltB64: string): Promise<boolean> {
-  const { hash } = await hashPin(pin, saltB64);
-  return constantTimeEqual(hash, expectedHashB64);
+export async function verifyPin(pin: string, encodedHash: string): Promise<boolean> {
+  return argon2Verify({ password: pin, hash: encodedHash });
 }
 
 export function constantTimeEqual(a: string, b: string): boolean {

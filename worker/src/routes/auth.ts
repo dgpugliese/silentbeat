@@ -165,6 +165,30 @@ auth.post('/passkey/register/finish', requireUser, async (c) => {
   return c.json({ ok: true, credentialDeviceType, credentialBackedUp });
 });
 
+// --- Passkey management (signed-in user) ---
+
+auth.get('/passkeys', requireUser, async (c) => {
+  const userId = c.get('userId');
+  const { results } = await c.env.DB.prepare(
+    `SELECT credential_id, transports, created_at, last_used_at
+     FROM passkey_credentials WHERE user_id = ? ORDER BY created_at DESC`,
+  ).bind(userId).all<{
+    credential_id: string; transports: string | null;
+    created_at: number; last_used_at: number | null;
+  }>();
+  return c.json({ passkeys: results ?? [] });
+});
+
+auth.delete('/passkeys/:credentialId', requireUser, async (c) => {
+  const userId = c.get('userId');
+  const credentialId = c.req.param('credentialId');
+  const r = await c.env.DB.prepare(
+    `DELETE FROM passkey_credentials WHERE credential_id = ? AND user_id = ?`,
+  ).bind(credentialId, userId).run();
+  if (!r.meta.changes) return c.json({ error: 'not found' }, 404);
+  return c.json({ ok: true });
+});
+
 // --- Passkey authentication (no prior session) ---
 
 auth.post('/passkey/authenticate/begin', async (c) => {

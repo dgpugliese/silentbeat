@@ -500,6 +500,44 @@ a:hover { color: var(--accent-2); }
 .signin-card { padding: 22px; margin-top: 18px; }
 .signin-method p { font-size: 13px; line-height: 1.55; margin: 4px 0 10px; color: var(--ink-soft); }
 
+/* === Settings === */
+.settings-section {
+  padding: 18px 20px;
+  margin-top: 14px;
+}
+.settings-section .panel-label { margin-bottom: 6px; }
+.panel-danger { border-color: var(--accent); }
+.panel-danger .panel-label { color: var(--accent); }
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--ink-faint);
+}
+.settings-row:last-child { border-bottom: 0; }
+.settings-key {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.settings-val {
+  font-size: 13px;
+  color: var(--ink);
+  text-align: right;
+}
+.settings-list {
+  display: flex; flex-direction: column;
+  margin-top: 4px;
+}
+.settings-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 /* === Modal === */
 .modal-backdrop {
   position: fixed; inset: 0;

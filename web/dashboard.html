@@ -59,10 +59,14 @@
     </div>
     <div class="wobble panel">
       <div class="panel-label t-mono">SAFETY NETS</div>
-      <div class="panel-list">
+      <div class="panel-list" id="safety-list">
         <div><span class="ok">ok</span> daily reminder email</div>
-        <div><span class="ok">ok</span> passkey enrolled</div>
+        <div id="passkey-line"><span class="t-soft">…</span> passkey</div>
         <div><span class="ok">ok</span> recovery contact set</div>
+      </div>
+      <div id="passkey-action" style="margin-top: 10px; display: none;">
+        <button id="register-passkey-btn" class="btn btn-tiny" type="button">register passkey on this device</button>
+        <div id="passkey-status" class="t-soft" style="font-size: 11px; margin-top: 6px; min-height: 14px;"></div>
       </div>
     </div>
     <div class="wobble panel panel-danger">
@@ -143,17 +147,49 @@
     }
   });
 
+  async function refreshPasskeyPanel() {
+    try {
+      const me = await SB.api('/api/auth/me');
+      const n = (me.user && me.user.passkey_count) || 0;
+      const line = document.getElementById('passkey-line');
+      const action = document.getElementById('passkey-action');
+      if (n > 0) {
+        line.innerHTML = '<span class="ok">ok</span> passkey enrolled (' + n + ')';
+        action.style.display = 'none';
+      } else {
+        line.innerHTML = '<span class="t-soft">—</span> no passkey enrolled';
+        action.style.display = window.PublicKeyCredential ? 'block' : 'none';
+      }
+    } catch {}
+  }
+
+  document.getElementById('register-passkey-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = document.getElementById('passkey-status');
+    btn.disabled = true; status.textContent = 'awaiting your authenticator…';
+    try {
+      await SB.registerPasskey();
+      status.textContent = 'enrolled.';
+      await refreshPasskeyPanel();
+    } catch (err) {
+      if (err && err.name === 'NotAllowedError') status.textContent = 'cancelled.';
+      else status.textContent = 'failed: ' + (err && err.message ? err.message : 'unknown');
+      btn.disabled = false;
+    }
+  });
+
   (async () => {
     try {
       const r = await SB.api('/api/switches');
       const list = r.switches || [];
       const sw = list.find(s => s.status === 'armed') || list[0];
-      if (!sw) return setEmpty();
-      setActive(sw);
+      if (sw) setActive(sw);
+      else setEmpty();
     } catch (e) {
       if (e.status === 401) { SB.clearSession(); location.replace('/signin.html'); return; }
       document.getElementById('status-title').textContent = 'error loading: ' + e.message;
     }
+    refreshPasskeyPanel();
   })();
 </script>
 

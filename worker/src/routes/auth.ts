@@ -91,7 +91,11 @@ auth.get('/me', async (c) => {
   if (!session) return c.json({ user: null });
   const user = await c.env.DB.prepare(`SELECT id, email, created_at FROM users WHERE id = ?`)
     .bind(session.userId).first();
-  return c.json({ user });
+  if (!user) return c.json({ user: null });
+  const pk = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM passkey_credentials WHERE user_id = ?`,
+  ).bind(session.userId).first<{ n: number }>();
+  return c.json({ user: { ...user, passkey_count: pk?.n ?? 0 } });
 });
 
 // --- Passkey registration (requires existing session) ---

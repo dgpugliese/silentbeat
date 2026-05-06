@@ -30,8 +30,8 @@
   <h1 class="h-hand" style="font-size: 32px; margin: 0;">decrypt the released message.</h1>
   <p class="t-soft" style="font-size: 14px; margin-top: 6px;">
     Everything happens in your browser. Two halves of the key combine here:
-    SilentBeat&rsquo;s half (share A, sent in your release email) and your half
-    (share B, encrypted to your enrollment public key — only your rescue file
+    SilentBeat&rsquo;s half (sent in your release email) and your half
+    (encrypted to your enrollment public key — only your rescue file
     decrypts it). The combined key never leaves this page.
   </p>
 
@@ -39,10 +39,10 @@
     <div class="t-mono t-faint" style="font-size: 11px;">// rescue file (the JSON you saved when you enrolled)</div>
     <input id="rescue-file" type="file" accept="application/json,.json" class="field" style="margin-top: 6px;" />
 
-    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// share A — server share (base64)</div>
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// SilentBeat's half of the key (base64)</div>
     <input id="share-a" class="field t-mono" type="text" placeholder="paste from release email" style="margin-top: 6px;" />
 
-    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// encrypted share B — JSON envelope</div>
+    <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// your encrypted half of the key (JSON envelope)</div>
     <textarea id="share-b" class="field t-mono" rows="3" placeholder='{"v":1,"ephPub":...,"iv":"...","ct":"..."}' style="margin-top: 6px;"></textarea>
 
     <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px;">// encrypted payload URL</div>
@@ -106,7 +106,7 @@
     const url = (document.getElementById('url').value || '').trim();
 
     if (!fileInput.files[0]) { status.textContent = 'select your rescue file.'; return; }
-    if (!shareAB64 || !shareBEnvelopeRaw || !url) { status.textContent = 'paste shareA, encrypted shareB, AND the URL.'; return; }
+    if (!shareAB64 || !shareBEnvelopeRaw || !url) { status.textContent = 'paste both halves of the key AND the URL.'; return; }
 
     status.style.color = 'var(--ink-soft)';
     outputCard.style.display = 'none';
@@ -116,7 +116,7 @@
       const rescue = await readRescueFile(fileInput.files[0]);
       if (!rescue.privateKeyJwk) throw new Error('rescue file has no privateKeyJwk');
 
-      status.textContent = 'decrypting share B with your rescue key…';
+      status.textContent = 'decrypting your half of the key with your rescue file…';
       const envelope = JSON.parse(shareBEnvelopeRaw);
       const shareB = await SB.eciesDecrypt(envelope, rescue.privateKeyJwk);
       if (shareB.length !== 32) throw new Error('decrypted shareB is wrong length: ' + shareB.length);

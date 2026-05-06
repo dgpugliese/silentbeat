@@ -40,8 +40,8 @@
   </p>
   <p class="t-soft" style="font-size: 13px; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--accent); background: rgba(255,255,255,0.02);">
     finalize must run from the same browser/device where you created the switch.
-    shareB lives in this browser's localStorage until you finalize. if you reach this
-    page on a different device or after clearing browser data, the switch is
+    the recipient's half of the key lives in this browser's localStorage until you finalize.
+    if you reach this page on a different device or after clearing browser data, the switch is
     unrecoverable and must be destroyed.
   </p>
 
@@ -55,7 +55,7 @@
     <div class="t-mono" style="font-size: 12px; line-height: 1.85;" id="checklist">
       <div>→ switch created — <span id="ck-create" class="t-faint">checking…</span></div>
       <div>→ recipient enrolled — <span id="ck-enroll" class="t-faint">checking…</span></div>
-      <div>→ shareB encrypted to recipient pubkey — <span id="ck-finalize" class="t-faint">pending</span></div>
+      <div>→ recipient half encrypted to their pubkey — <span id="ck-finalize" class="t-faint">pending</span></div>
       <div>→ switch armed — <span id="ck-arm" class="t-faint">pending</span></div>
     </div>
 
@@ -135,8 +135,8 @@
       const pubkeyJwk = JSON.parse(r.switch.pubkey_jwk_json);
       const shareB = SB.readShareB(switchId);
       if (!shareB) {
-        statusLine.textContent = 'shareB lost.';
-        statusDetail.innerHTML = 'your browser has no record of shareB for this switch. it must have been generated on a different device or after a localStorage wipe. without it, this switch can never arm. <a href="#" id="purge">destroy it</a> and start over.';
+        statusLine.textContent = 'recipient half lost.';
+        statusDetail.innerHTML = 'your browser has no record of the recipient\'s half of the key for this switch. it must have been generated on a different device or after a localStorage wipe. without it, this switch can never arm. <a href="#" id="purge">destroy it</a> and start over.';
         document.getElementById('purge').addEventListener('click', async (e) => {
           e.preventDefault();
           await SB.api('/api/switches/' + switchId, { method: 'DELETE' });

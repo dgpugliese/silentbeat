@@ -188,6 +188,74 @@
       });
     },
 
+    // === WebAuthn PRF for recipient enrollment ===
+    // Creates a passkey, evaluates the PRF extension to derive a deterministic
+    // 32-byte secret, returns it. PRF eval is attempted at registration first;
+    // if the authenticator doesn't honor it there, we follow up with an
+    // immediate get() ceremony (whose signature we discard) just to fire PRF.
+    async createPasskeyWithPRF(opts, prfSalt) {
+      const pkOpts = this._prepCreate(opts);
+      pkOpts.extensions = { prf: { eval: { first: prfSalt } } };
+      const cred = await navigator.credentials.create({ publicKey: pkOpts });
+      if (!cred) throw new Error('passkey creation cancelled');
+
+      const ext = cred.getClientExtensionResults?.() || {};
+      let prfResult = ext.prf && ext.prf.results && ext.prf.results.first;
+
+      if (!prfResult) {
+        // Authenticator declined PRF at registration. Run an auth ceremony
+        // against the just-created credential to fire PRF.
+        const challenge = crypto.getRandomValues(new Uint8Array(32));
+        const getOpts = {
+          challenge,
+          rpId: opts.rp.id,
+          allowCredentials: [{ id: cred.rawId, type: 'public-key' }],
+          userVerification: 'preferred',
+          extensions: { prf: { eval: { first: prfSalt } } },
+        };
+        const auth = await navigator.credentials.get({ publicKey: getOpts });
+        if (!auth) throw new Error('PRF eval cancelled');
+        const aext = auth.getClientExtensionResults?.() || {};
+        prfResult = aext.prf && aext.prf.results && aext.prf.results.first;
+        if (!prfResult) {
+          throw new Error('this device does not support the WebAuthn PRF extension');
+        }
+      }
+
+      return { credential: cred, prfBytes: new Uint8Array(prfResult) };
+    },
+
+    // Use PRF output as IKM to derive an AES-GCM key via HKDF.
+    // Same pattern as our ECIES key derivation, just a different label.
+    async _prfWrapKey(prfBytes, usages) {
+      const ikm = await crypto.subtle.importKey('raw', prfBytes, 'HKDF', false, ['deriveKey']);
+      const info = new TextEncoder().encode('silentbeat/prf/v1/recipient-privkey');
+      const salt = new Uint8Array(32);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt, info },
+        ikm, { name: 'AES-GCM', length: 256 }, false, usages,
+      );
+    },
+
+    async wrapPrivkeyWithPRF(privkeyJwk, prfBytes) {
+      const aesKey = await this._prfWrapKey(prfBytes, ['encrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        aesKey,
+        new TextEncoder().encode(JSON.stringify(privkeyJwk)),
+      ));
+      return { ct, iv };
+    },
+
+    async unwrapPrivkeyWithPRF(ct, iv, prfBytes) {
+      const aesKey = await this._prfWrapKey(prfBytes, ['decrypt']);
+      const ptBytes = new Uint8Array(await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv }, aesKey, ct,
+      ));
+      return JSON.parse(new TextDecoder().decode(ptBytes));
+    },
+
     async authenticateWithPasskey(email) {
       const body = JSON.stringify(email ? { email } : {});
       const begin = await this.api('/api/auth/passkey/authenticate/begin', { method: 'POST', body });

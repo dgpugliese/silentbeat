@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SilentBeat — Accept your invitation</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page recipient-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="t-mono t-faint" style="font-size: 11px;">accept invitation</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 32px; margin: 0;">someone made you their contact.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px; line-height: 1.55;">
+    SilentBeat is a digital safety net. If the person who invited you stops checking in, a message they
+    wrote will be released to you. To accept, your phone or laptop will set up a passkey — that's the
+    key SilentBeat uses to deliver the message safely later. <strong>Nothing is sent yet.</strong>
+  </p>
+
+  <section class="wobble verify-card" style="padding: 18px; margin-top: 14px;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// what happens when you tap accept</div>
+    <ol style="font-size: 13px; line-height: 1.65; margin: 8px 0 0 18px; padding: 0; color: var(--ink-soft);">
+      <li>Your device asks you to set up a passkey (Face ID, Touch ID, Windows Hello, or a security key).</li>
+      <li>SilentBeat stores nothing about you that can be unlocked without that passkey.</li>
+      <li>If your contact ever goes silent past their timer, the message arrives in your inbox with a one-tap link to read it.</li>
+    </ol>
+    <div class="actions" style="margin-top: 14px; justify-content: flex-start;">
+      <button id="accept-btn" class="btn btn-primary" type="button">accept &amp; set up passkey →</button>
+    </div>
+    <div id="status" class="t-soft" style="font-size: 12px; margin-top: 10px; min-height: 14px;"></div>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    If this seems wrong or unexpected, just close this tab. Nothing happens until you tap accept.
+    Read more about <a href="/threat-model.html">how SilentBeat works</a>.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a> · <a href="/threat-model.html">threat model</a></span>
+  </div>
+
+</main>
+
+<script src="/app.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  const token = params.get('t');
+  const status = document.getElementById('status');
+  const btn = document.getElementById('accept-btn');
+
+  if (!id || !token) {
+    status.textContent = 'this link is missing required parameters.';
+    btn.disabled = true;
+  }
+  if (!window.PublicKeyCredential || !navigator.credentials) {
+    status.textContent = 'this browser does not support passkeys; open the link on a phone or modern laptop.';
+    btn.disabled = true;
+  }
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    status.style.color = 'var(--ink-soft)';
+    status.textContent = 'requesting enrollment options…';
+    try {
+      const begin = await SB.api('/api/recipients-anon/' + id + '/enroll/begin', {
+        method: 'POST', body: JSON.stringify({ token }),
+      });
+      const prfSalt = SB.b64ToBytes(begin.prf_salt_b64);
+
+      status.textContent = 'awaiting your authenticator…';
+      const { credential, prfBytes } = await SB.createPasskeyWithPRF(begin.options, prfSalt);
+
+      status.textContent = 'generating your decryption key (locally)…';
+      const kp = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'],
+      );
+      const pubkeyJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+      const privkeyJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+
+      status.textContent = 'wrapping your private key with your passkey…';
+      const { ct, iv } = await SB.wrapPrivkeyWithPRF(privkeyJwk, prfBytes);
+
+      status.textContent = 'finalizing enrollment…';
+      await SB.api('/api/recipients-anon/' + id + '/enroll/finish', {
+        method: 'POST',
+        body: JSON.stringify({
+          token,
+          response: SB._credToJson(credential),
+          pubkeyJwk,
+          encPrivkeyCtB64: SB.bytesToB64(ct),
+          encPrivkeyIvB64: SB.bytesToB64(iv),
+        }),
+      });
+
+      status.style.color = 'var(--accent-2)';
+      status.textContent = 'all set. you don\'t need to do anything else. close this tab.';
+    } catch (e) {
+      status.style.color = 'var(--accent)';
+      if (e && e.name === 'NotAllowedError') status.textContent = 'cancelled.';
+      else status.textContent = 'failed: ' + (e && e.message ? e.message : 'unknown');
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 An honest dead man's switch. Encrypted in your browser. Released only if you stop checking in.
 
-**Live demo:** https://silentbeat-staging.the-it-visionary.workers.dev
+**Live:** https://silentbeat.app
 
 ## What it is
 
@@ -14,10 +14,10 @@ A dead man's switch cannot be true zero-knowledge — *something* has to be rele
 
 The payload AES key is split into two halves:
 
-- **Share A** lives on our server. We have it.
-- **Share B** is generated in your *recipient's* browser at enrollment. It never touches our server in plaintext — it's encrypted to their P-256 public key (ECIES) before we see it. Only their rescue file decrypts it.
+- **Our half** lives on our server. We have it.
+- **Recipient's half** is generated in your recipient's browser at enrollment, AES-wrapped under a key derived from their WebAuthn passkey via the PRF extension, and stored on our server in that wrapped form. We never see the unwrapped half.
 
-Neither half decrypts on its own. SilentBeat can email Share A and the encrypted Share B to your recipient at expiry, but cannot ever combine them. That's the actual claim, end-to-end verified.
+Neither half decrypts on its own. At expiry, the recipient taps their passkey to unwrap their half locally, combine with our half, and decrypt the message. SilentBeat cannot combine them. That's the actual claim, end-to-end verified.
 
 The full enumeration of who we defend against and what we don't lives at [`/threat-model.html`](web/threat-model.html).
 
@@ -31,7 +31,8 @@ The full enumeration of who we defend against and what we don't lives at [`/thre
 | Backup expiry sweep | Cron Trigger every 5 min | catches missed alarms |
 | Encrypted payload blobs | R2 | up to 50 MB per switch |
 | Sessions, passkey challenges, release tokens | KV | TTL-based ephemeral state |
-| Argon2id PIN hashing | `@noble/hashes` (pure JS) | Workers reject runtime `WebAssembly.compile` |
+| Argon2id PIN hashing | `argon2-wasm-edge` (static-imported WASM) | Workers reject runtime `WebAssembly.compile` |
+| Recipient passkey + PRF | WebAuthn + extensions.prf | Deterministic 32-byte secret unlocks recipient's wrapped privkey at decrypt |
 | AEAD master-key wrapping | Workers Secret + AES-256-GCM | recipient email + duress slot |
 | Audit log signing | Ed25519 (WebCrypto) | every entry signed; root checkpoint published |
 | Email | Resend (planned) | dev mode logs to console |
@@ -61,9 +62,12 @@ silentbeat/
 | 4 | Argon2id PIN hashing, email helper, real DO release flow, PIN rate-limit | ✅ |
 | 5 | Frontend wired to live API (real countdowns, real submit, real check-in) | ✅ |
 | 6 | True split-key crypto (server cannot decrypt) | ✅ |
-| — | Staging deploy on workers.dev | ✅ |
-| 7 | WebAuthn passkey UI, HKDF on ECIES, cleanup migrations | next |
-| 8 | Resend domain verified, custom domain, production deploy | pending |
+| 7 | WebAuthn passkey sign-in, HKDF on ECIES, single-use tokens, schema cleanup | ✅ |
+| 8 | Argon2id over WASM (`argon2-wasm-edge`) for predictable Worker CPU | ✅ |
+| 9 | Mobile / PWA pass + manifest | ✅ |
+| — | Resend wired, ENVIRONMENT=production, silentbeat.app live | ✅ |
+| 10 | Recipients as per-account entities; passkey + PRF replaces rescue file | ✅ |
+| 11 | Stripe — premium tier, plan enforcement, billing UI | next |
 
 ## Local dev
 

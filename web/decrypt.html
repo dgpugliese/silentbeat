@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SilentBeat — Read your message</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page recipient-page">
+
+  <header class="recipient-top">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <span class="t-mono t-faint" style="font-size: 11px;">released to you</span>
+  </header>
+  <hr class="hr-sketch" />
+
+  <h1 class="h-hand" style="font-size: 32px; margin: 0;">a message has been released to you.</h1>
+  <p class="t-soft" style="font-size: 14px; margin-top: 6px; line-height: 1.55;">
+    The person who made you their contact did not check in before their timer expired. Their
+    message is waiting. Tap the button below — your phone or laptop will ask you to confirm
+    with the passkey you set up when you accepted their invitation, and the message will appear.
+  </p>
+
+  <section class="wobble verify-card" style="padding: 18px; margin-top: 14px;">
+    <div class="actions" style="justify-content: flex-start;">
+      <button id="decrypt-btn" class="btn btn-primary" type="button">tap to decrypt &rarr;</button>
+    </div>
+    <div id="status" class="t-soft" style="font-size: 12px; margin-top: 10px; min-height: 14px;"></div>
+  </section>
+
+  <section class="wobble verify-card" id="output-card" style="padding: 16px; margin-top: 12px; display: none;">
+    <div class="t-mono t-faint" style="font-size: 11px;">// message</div>
+    <pre id="output" class="t-mono" style="white-space: pre-wrap; word-break: break-word; margin-top: 8px; padding: 12px; border: 1px dashed var(--ink-faint); border-radius: 6px; max-height: 60vh; overflow: auto;"></pre>
+    <div class="actions" style="margin-top: 10px; justify-content: flex-start;">
+      <button id="copy-btn" class="btn btn-sm" type="button">copy</button>
+      <a id="download-link" class="btn btn-sm">download as file</a>
+    </div>
+    <p class="t-faint" style="font-size: 11px; margin-top: 12px;">
+      Decrypted entirely in your browser. SilentBeat never saw the combined key.
+    </p>
+  </section>
+
+  <p class="t-soft" style="font-size: 12px; margin-top: 18px; line-height: 1.5;">
+    If this seems wrong — sender is fine, you don&rsquo;t recognize them — please tell us.
+    Verify in the <a href="/log.html">public log</a>.
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a> · <a href="/threat-model.html">threat model</a></span>
+  </div>
+
+</main>
+
+<script src="/app.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('sid');
+  const rid = params.get('rid');
+  const url = params.get('url');
+  const shareAB64 = params.get('a');
+  const shareBEnvelopeRaw = params.get('b');
+
+  const status = document.getElementById('status');
+  const output = document.getElementById('output');
+  const outputCard = document.getElementById('output-card');
+  const decryptBtn = document.getElementById('decrypt-btn');
+  const copyBtn = document.getElementById('copy-btn');
+  const dlLink = document.getElementById('download-link');
+
+  if (!sid || !rid || !url || !shareAB64 || !shareBEnvelopeRaw) {
+    status.textContent = 'this link is incomplete or has been tampered with.';
+    decryptBtn.disabled = true;
+  }
+  if (!window.PublicKeyCredential || !navigator.credentials) {
+    status.textContent = 'this browser does not support passkeys; open the link on a phone or modern laptop.';
+    decryptBtn.disabled = true;
+  }
+
+  decryptBtn.addEventListener('click', async () => {
+    decryptBtn.disabled = true;
+    status.style.color = 'var(--ink-soft)';
+    outputCard.style.display = 'none';
+    try {
+      status.textContent = 'looking up your enrollment…';
+      const bundle = await SB.api('/api/recipients-anon/' + rid + '/decrypt-bundle');
+
+      status.textContent = 'awaiting your passkey…';
+      const prfSalt = SB.b64ToBytes(bundle.prf_salt_b64);
+      const prfBytes = await SB.evaluatePRF(bundle.credential_id, prfSalt, bundle.rp_id);
+
+      status.textContent = 'unwrapping your private key…';
+      const ct = SB.b64ToBytes(bundle.enc_privkey_ct_b64);
+      const iv = SB.b64ToBytes(bundle.enc_privkey_iv_b64);
+      const privkeyJwk = await SB.unwrapPrivkeyWithPRF(ct, iv, prfBytes);
+
+      status.textContent = 'decrypting recipient half (locally)…';
+      const envelope = JSON.parse(shareBEnvelopeRaw);
+      const shareB = await SB.eciesDecrypt(envelope, privkeyJwk);
+      if (shareB.length !== 32) throw new Error('decrypted recipient half wrong length: ' + shareB.length);
+
+      const shareA = SB.b64ToBytes(shareAB64);
+      if (shareA.length !== 32) throw new Error('server half wrong length: ' + shareA.length);
+      const K = SB.combineShares(shareA, shareB);
+
+      status.textContent = 'fetching encrypted payload…';
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('fetch failed: ' + r.status);
+      const blob = new Uint8Array(await r.arrayBuffer());
+
+      status.textContent = 'decrypting payload locally…';
+      const pt = await SB.decryptPayload(blob, K);
+      const text = new TextDecoder().decode(pt);
+
+      output.textContent = text;
+      outputCard.style.display = 'block';
+      status.style.color = 'var(--accent-2)';
+      status.textContent = 'decrypted ' + pt.byteLength + ' bytes locally. nothing was sent back to silentbeat.';
+
+      const dlBlob = new Blob([pt], { type: 'application/octet-stream' });
+      dlLink.href = URL.createObjectURL(dlBlob);
+      dlLink.download = 'silentbeat-message.txt';
+    } catch (e) {
+      status.style.color = 'var(--accent)';
+      if (e && e.name === 'NotAllowedError') status.textContent = 'cancelled.';
+      else status.textContent = 'failed: ' + (e && e.message ? e.message : 'unknown');
+      decryptBtn.disabled = false;
+    }
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(output.textContent).then(
+      () => { copyBtn.textContent = 'copied'; setTimeout(() => copyBtn.textContent = 'copy', 1200); },
+      () => { copyBtn.textContent = 'copy failed'; }
+    );
+  });
+</script>
+
+</body>
+</html>

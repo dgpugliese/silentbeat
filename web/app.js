@@ -256,6 +256,27 @@
       return JSON.parse(new TextDecoder().decode(ptBytes));
     },
 
+    // Run a WebAuthn auth ceremony against a known credential id with PRF eval.
+    // Used at decrypt time to deterministically reproduce the recipient's PRF
+    // output. Signature is irrelevant to us — we only need the PRF bytes.
+    async evaluatePRF(credentialIdB64url, prfSaltBytes, rpId) {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const credId = this.b64urlToBytes(credentialIdB64url);
+      const opts = {
+        challenge,
+        rpId,
+        allowCredentials: [{ id: credId, type: 'public-key' }],
+        userVerification: 'preferred',
+        extensions: { prf: { eval: { first: prfSaltBytes } } },
+      };
+      const auth = await navigator.credentials.get({ publicKey: opts });
+      if (!auth) throw new Error('PRF eval cancelled');
+      const ext = auth.getClientExtensionResults?.() || {};
+      const prf = ext.prf && ext.prf.results && ext.prf.results.first;
+      if (!prf) throw new Error('this device did not produce a PRF result');
+      return new Uint8Array(prf);
+    },
+
     async authenticateWithPasskey(email) {
       const body = JSON.stringify(email ? { email } : {});
       const begin = await this.api('/api/auth/passkey/authenticate/begin', { method: 'POST', body });

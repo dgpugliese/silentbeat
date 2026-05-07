@@ -84,6 +84,37 @@ recipientEnroll.post('/:id/enroll/begin', async (c) => {
   });
 });
 
+// Decrypt-time bundle. Anonymous; the only sensitive material returned (the
+// AES-wrapped privkey JWK) is useless without a successful PRF eval against
+// the actual recipient passkey. Credential id + prf_salt + pubkey are public.
+recipientEnroll.get('/:id/decrypt-bundle', async (c) => {
+  const id = c.req.param('id');
+  const row = await c.env.DB.prepare(
+    `SELECT id, status, passkey_credential_id, prf_salt,
+            enc_privkey_jwk_ct, enc_privkey_iv, pubkey_jwk_json
+     FROM account_recipients WHERE id = ?`,
+  ).bind(id).first<{
+    id: string; status: string;
+    passkey_credential_id: string | null;
+    prf_salt: ArrayBuffer | null;
+    enc_privkey_jwk_ct: ArrayBuffer | null;
+    enc_privkey_iv: ArrayBuffer | null;
+    pubkey_jwk_json: string | null;
+  }>();
+  if (!row) return c.json({ error: 'not_found' }, 404);
+  if (row.status !== 'enrolled') return c.json({ error: `status_${row.status}` }, 409);
+  if (!row.passkey_credential_id || !row.prf_salt || !row.enc_privkey_jwk_ct || !row.enc_privkey_iv) {
+    return c.json({ error: 'incomplete_enrollment' }, 409);
+  }
+  return c.json({
+    credential_id: row.passkey_credential_id,
+    prf_salt_b64: bytesToB64(new Uint8Array(row.prf_salt)),
+    enc_privkey_ct_b64: bytesToB64(new Uint8Array(row.enc_privkey_jwk_ct)),
+    enc_privkey_iv_b64: bytesToB64(new Uint8Array(row.enc_privkey_iv)),
+    rp_id: c.env.RP_ID,
+  });
+});
+
 recipientEnroll.post('/:id/enroll/finish', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json<{

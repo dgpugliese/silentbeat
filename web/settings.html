@@ -68,6 +68,43 @@
     </div>
   </section>
 
+  <section class="wobble settings-section">
+    <div class="panel-label t-mono">RECIPIENTS</div>
+    <p class="t-soft" style="font-size: 13px; margin: 4px 0 10px;">
+      People you can target with a switch. Invite once, reuse forever — no need to re-enroll
+      a recipient for each new switch. They tap a passkey on their phone or laptop; no file to save.
+    </p>
+    <div id="recipient-list" class="settings-list">
+      <div class="t-soft" style="font-size: 13px;">loading…</div>
+    </div>
+    <div id="recipient-msg" class="t-soft" style="font-size: 12px; min-height: 14px; margin-top: 8px;"></div>
+    <div class="settings-actions">
+      <button id="invite-recipient-btn" class="btn btn-sm" type="button">invite a recipient →</button>
+    </div>
+  </section>
+
+  <div id="invite-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="inv-title" hidden>
+    <div class="wobble modal-card">
+      <div class="modal-head">
+        <div class="h-hand" id="inv-title" style="font-size: 24px;">invite a recipient</div>
+        <button class="modal-close" id="inv-close" type="button" aria-label="close">×</button>
+      </div>
+      <p class="t-soft" style="font-size: 13px; margin: 8px 0 12px;">
+        We email them a one-time enrollment link (valid 14 days). When they tap it on their device,
+        their phone or laptop sets up a passkey, and they're enrolled.
+      </p>
+      <label class="t-mono t-faint" style="font-size: 11px;">// recipient email</label>
+      <input id="inv-email" class="field" type="email" placeholder="them@example.com" style="margin-top: 6px;" />
+      <label class="t-mono t-faint" style="font-size: 11px; margin-top: 10px; display: block;">// display name (optional)</label>
+      <input id="inv-name" class="field" type="text" placeholder="Sarah, Mom, etc." style="margin-top: 6px;" />
+      <div id="inv-status" class="t-soft" style="font-size: 12px; min-height: 14px; margin-top: 10px;"></div>
+      <div class="actions" style="margin-top: 12px; justify-content: flex-end; gap: 8px;">
+        <button id="inv-cancel" class="btn btn-sm" type="button">cancel</button>
+        <button id="inv-send" class="btn btn-sm btn-primary" type="button">send invite</button>
+      </div>
+    </div>
+  </div>
+
   <section class="wobble settings-section panel-danger">
     <div class="panel-label t-mono">DANGER ZONE</div>
     <p class="t-soft" style="font-size: 13px; margin: 4px 0 10px;">
@@ -245,8 +282,134 @@
     }
   });
 
+  // === recipients ===
+  const recipMsg = document.getElementById('recipient-msg');
+
+  function statusBadge(status) {
+    if (status === 'enrolled') return '<span class="ok">ok</span>';
+    if (status === 'invited') return '<span class="t-soft">…</span>';
+    return '<span class="t-faint">—</span>';
+  }
+
+  async function loadRecipients() {
+    const list = document.getElementById('recipient-list');
+    try {
+      const r = await SB.api('/api/account/recipients');
+      const items = r.recipients || [];
+      if (!items.length) {
+        list.innerHTML = '<div class="t-soft" style="font-size: 13px;">no recipients yet — invite one below.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      for (const rec of items) {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        const who = (rec.display_name ? '<strong>' + rec.display_name + '</strong> · ' : '') + rec.email;
+        const meta = rec.status === 'enrolled'
+          ? 'enrolled ' + SB.timeAgo(rec.enrolled_at)
+          : rec.status === 'invited'
+            ? 'invited; awaiting their response'
+            : rec.status;
+        row.innerHTML =
+          '<div class="settings-key" style="display: flex; flex-direction: column; gap: 2px;">' +
+            '<span style="font-size: 13px;">' + statusBadge(rec.status) + ' ' + who + '</span>' +
+            '<span class="t-faint" style="font-size: 11px;">' + meta + '</span>' +
+          '</div>' +
+          '<div class="settings-val" style="display: flex; gap: 6px; align-items: center;"></div>';
+        const actions = row.children[1];
+        if (rec.status === 'invited') {
+          const re = document.createElement('button');
+          re.className = 'btn btn-tiny';
+          re.type = 'button';
+          re.textContent = 'resend';
+          re.addEventListener('click', () => reinviteRecipient(rec.id));
+          actions.appendChild(re);
+        }
+        const rm = document.createElement('button');
+        rm.className = 'btn btn-tiny btn-danger';
+        rm.type = 'button';
+        rm.textContent = 'remove';
+        rm.addEventListener('click', () => removeRecipient(rec.id));
+        actions.appendChild(rm);
+        list.appendChild(row);
+      }
+    } catch (e) {
+      list.innerHTML = '<div style="color: var(--accent); font-size: 13px;">failed to load: ' + e.message + '</div>';
+    }
+  }
+
+  async function reinviteRecipient(id) {
+    recipMsg.style.color = ''; recipMsg.textContent = 'resending…';
+    try {
+      const r = await SB.api('/api/account/recipients/' + id + '/reinvite', { method: 'POST', body: '{}' });
+      recipMsg.textContent = r.dev_link ? 'invite re-sent. dev_link: ' + r.dev_link : 'invite re-sent.';
+    } catch (e) {
+      recipMsg.style.color = 'var(--accent)';
+      recipMsg.textContent = 'failed: ' + e.message;
+    }
+  }
+
+  async function removeRecipient(id) {
+    if (!confirm('Remove this recipient? Switches that target them must be destroyed or re-targeted first.')) return;
+    recipMsg.style.color = ''; recipMsg.textContent = 'removing…';
+    try {
+      await SB.api('/api/account/recipients/' + id, { method: 'DELETE' });
+      recipMsg.textContent = 'removed.';
+      await loadRecipients();
+    } catch (e) {
+      recipMsg.style.color = 'var(--accent)';
+      if (e.body && e.body.error === 'recipient_has_active_switches') {
+        recipMsg.textContent = 'cannot remove — ' + e.body.count + ' switch' + (e.body.count === 1 ? '' : 'es') + ' still target them. destroy or re-target first.';
+      } else {
+        recipMsg.textContent = 'failed: ' + e.message;
+      }
+    }
+  }
+
+  const invModal = document.getElementById('invite-modal');
+  const invEmail = document.getElementById('inv-email');
+  const invName = document.getElementById('inv-name');
+  const invStatus = document.getElementById('inv-status');
+  const invSend = document.getElementById('inv-send');
+
+  document.getElementById('invite-recipient-btn').addEventListener('click', () => {
+    invModal.hidden = false;
+    invEmail.value = ''; invName.value = '';
+    invStatus.style.color = ''; invStatus.textContent = '';
+    invSend.disabled = false;
+    setTimeout(() => invEmail.focus(), 30);
+  });
+  function closeInv() { invModal.hidden = true; }
+  document.getElementById('inv-close').addEventListener('click', closeInv);
+  document.getElementById('inv-cancel').addEventListener('click', closeInv);
+  invModal.addEventListener('click', (e) => { if (e.target === invModal) closeInv(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !invModal.hidden) closeInv(); });
+
+  invSend.addEventListener('click', async () => {
+    const email = (invEmail.value || '').trim();
+    if (!email.includes('@')) { invStatus.style.color = 'var(--accent)'; invStatus.textContent = 'enter a valid email.'; return; }
+    invSend.disabled = true;
+    invStatus.style.color = '';
+    invStatus.textContent = 'sending invite…';
+    try {
+      const r = await SB.api('/api/account/recipients', {
+        method: 'POST',
+        body: JSON.stringify({ email, displayName: (invName.value || '').trim() }),
+      });
+      invStatus.style.color = 'var(--accent-2)';
+      invStatus.textContent = r.dev_link ? 'sent. dev_link: ' + r.dev_link : 'sent. they will receive an email shortly.';
+      await loadRecipients();
+      setTimeout(closeInv, 1500);
+    } catch (e) {
+      invStatus.style.color = 'var(--accent)';
+      invStatus.textContent = 'failed: ' + e.message;
+      invSend.disabled = false;
+    }
+  });
+
   loadAccount();
   loadPasskeys();
+  loadRecipients();
 </script>
 
 </body>

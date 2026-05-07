@@ -111,6 +111,20 @@ accountRecipients.post('/', async (c) => {
   return c.json({ ok: true, id, dev_link });
 });
 
+accountRecipients.get('/:id/pubkey', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const row = await c.env.DB.prepare(
+    `SELECT id, status, pubkey_jwk_json FROM account_recipients
+     WHERE id = ? AND owner_user_id = ?`,
+  ).bind(id, userId).first<{ id: string; status: string; pubkey_jwk_json: string | null }>();
+  if (!row) return c.json({ error: 'not_found' }, 404);
+  if (row.status !== 'enrolled' || !row.pubkey_jwk_json) {
+    return c.json({ error: `not_enrolled` }, 409);
+  }
+  return c.json({ id: row.id, pubkeyJwk: JSON.parse(row.pubkey_jwk_json) });
+});
+
 accountRecipients.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');

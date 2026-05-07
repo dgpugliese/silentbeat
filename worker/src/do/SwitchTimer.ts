@@ -58,21 +58,37 @@ export class SwitchTimer {
   }
 
   async release(switchId: string): Promise<{ released: boolean; reason?: string }> {
+    // Two flows:
+    //   - new (account_recipient): email + envelope live on switches/account_recipients
+    //   - legacy (per-switch recipient): email + envelope live on the recipients row
     const sw = await this.env.DB.prepare(
       `SELECT s.id, s.status, s.payload_r2_key, s.share_a,
-              r.email_ct, r.share_b_to_recipient
+              s.account_recipient_id, s.encrypted_share_b_json,
+              r.email_ct AS legacy_email_ct,
+              r.share_b_to_recipient AS legacy_share_b,
+              ar.email_ct AS account_email_ct
        FROM switches s
        LEFT JOIN recipients r ON r.switch_id = s.id
+       LEFT JOIN account_recipients ar ON ar.id = s.account_recipient_id
        WHERE s.id = ?`,
     ).bind(switchId).first<{
       id: string; status: string; payload_r2_key: string;
       share_a: ArrayBuffer;
-      email_ct: ArrayBuffer | null; share_b_to_recipient: string | null;
+      account_recipient_id: string | null;
+      encrypted_share_b_json: string | null;
+      legacy_email_ct: ArrayBuffer | null;
+      legacy_share_b: string | null;
+      account_email_ct: ArrayBuffer | null;
     }>();
 
     if (!sw) return { released: false, reason: 'switch_not_found' };
     if (sw.status !== 'armed') return { released: false, reason: `status_${sw.status}` };
-    if (!sw.email_ct || !sw.share_b_to_recipient) {
+
+    const isNewFlow = !!sw.account_recipient_id;
+    const emailCtBuf = isNewFlow ? sw.account_email_ct : sw.legacy_email_ct;
+    const encryptedShareB = isNewFlow ? sw.encrypted_share_b_json : sw.legacy_share_b;
+    const aadString = isNewFlow ? sw.account_recipient_id! : switchId;
+    if (!emailCtBuf || !encryptedShareB) {
       return { released: false, reason: 'recipient_incomplete' };
     }
 
@@ -88,10 +104,9 @@ export class SwitchTimer {
     }
 
     const recipientEmail = new TextDecoder().decode(
-      await aeadDecrypt(this.env, new Uint8Array(sw.email_ct), enc.encode(switchId)),
+      await aeadDecrypt(this.env, new Uint8Array(emailCtBuf), enc.encode(aadString)),
     );
     const shareAB64 = bytesToB64(new Uint8Array(sw.share_a));
-    const encryptedShareB = sw.share_b_to_recipient!; // checked above
 
     // One-time download token, 7-day TTL
     const tokenRaw = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
@@ -100,15 +115,34 @@ export class SwitchTimer {
       expirationTtl: 7 * 86400,
     });
     const downloadUrl = `${this.env.PUBLIC_BASE_URL}/api/release/${switchId}/payload?t=${tokenRaw}`;
+    // New-flow recipients (account_recipient) decrypt via passkey + PRF on /decrypt.html.
+    // Legacy recipients still use /recipient.html with a rescue file.
+    const decryptPage = isNewFlow ? '/decrypt.html' : '/recipient.html';
     const decryptUrl =
-      `${this.env.PUBLIC_BASE_URL}/recipient.html` +
+      `${this.env.PUBLIC_BASE_URL}${decryptPage}` +
       `?sid=${encodeURIComponent(switchId)}` +
+      (isNewFlow ? `&rid=${encodeURIComponent(sw.account_recipient_id!)}` : '') +
       `&url=${encodeURIComponent(downloadUrl)}` +
       `&a=${encodeURIComponent(shareAB64)}` +
       `&b=${encodeURIComponent(encryptedShareB)}`;
     const verifyUrl = `${this.env.PUBLIC_BASE_URL}/log.html`;
 
-    const text = [
+    const newFlowText = [
+      'A SilentBeat message has been released to you.',
+      '',
+      'The person who set this up did not check in before their timer expired.',
+      'Their wishes were that you receive this message in that case.',
+      '',
+      'Open the link below on the device where you accepted their invitation. ',
+      'Your phone or laptop will ask you to confirm with your passkey, and the message will appear.',
+      '',
+      decryptUrl,
+      '',
+      `Verify this release in the public log: ${verifyUrl}`,
+      `Switch ID for cross-reference: ${switchId}`,
+    ].join('\n');
+
+    const legacyText = [
       'A SilentBeat message has been released to you.',
       '',
       'The user who set this up did not check in before their timer expired.',
@@ -141,6 +175,8 @@ export class SwitchTimer {
       `Verify this release in the public log: ${verifyUrl}`,
       `Switch ID for cross-reference: ${switchId}`,
     ].join('\n');
+
+    const text = isNewFlow ? newFlowText : legacyText;
 
     const html = `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;
 

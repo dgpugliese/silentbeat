@@ -70,14 +70,24 @@
       <section class="wobble form-card" data-step-panel="2">
         <div class="t-mono t-faint form-tag">// recipient</div>
         <div class="form-q">Who receives it?</div>
-        <div class="row-2">
-          <input id="recipient-name" class="field" placeholder="name (optional)" />
-          <input id="recipient-email" class="field" placeholder="email" type="email" />
+
+        <div id="enrolled-recipients" style="display: none; margin-top: 8px;">
+          <div class="t-mono t-faint" style="font-size: 11px;">// pick from enrolled (switch arms immediately)</div>
+          <div id="enrolled-list" class="settings-list" style="margin-top: 6px;"></div>
         </div>
-        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 10px;">
-          We email this person a one-time enrollment link. They generate a keypair in their browser
-          and download a rescue file. Without their half, your message stays sealed forever — even
-          to us.
+
+        <div id="invite-new-recipient" style="margin-top: 14px;">
+          <div class="t-mono t-faint" style="font-size: 11px;">// or invite someone new (switch waits for them to enroll)</div>
+          <div class="row-2" style="margin-top: 6px;">
+            <input id="recipient-name" class="field" placeholder="name (optional)" />
+            <input id="recipient-email" class="field" placeholder="email" type="email" />
+          </div>
+        </div>
+
+        <div class="t-mono t-faint" style="font-size: 11px; margin-top: 12px; line-height: 1.55;">
+          Pre-enrolled recipients arm the switch immediately — no waiting, no rescue files.
+          They tap a passkey on their phone or laptop to decrypt later.
+          Inviting someone new sends them a one-time enrollment link; the switch stays pending until they accept.
         </div>
       </section>
 
@@ -195,11 +205,15 @@
     const a = document.querySelector('#timer-chips .chip-active');
     return a ? Number(a.dataset.seconds) : 1209600;
   }
+  let selectedRecipientId = null;
+  let selectedRecipientLabel = null;
+
   function getState() {
     return {
       payload: document.getElementById('payload-text').value || '',
       recipientName: document.getElementById('recipient-name').value || '',
       recipientEmail: (document.getElementById('recipient-email').value || '').trim(),
+      accountRecipientId: selectedRecipientId,
       timerSeconds: getTimer(),
       defusePin: document.getElementById('defuse-pin').value || '',
       duressPin: document.getElementById('duress-pin').value || '',
@@ -209,7 +223,9 @@
   function validateStep(n) {
     const s = getState();
     if (n >= 1 && !s.payload.trim()) return 'enter a message to encrypt.';
-    if (n >= 2 && !s.recipientEmail.includes('@')) return 'enter a valid recipient email.';
+    if (n >= 2 && !s.accountRecipientId && !s.recipientEmail.includes('@')) {
+      return 'pick an enrolled recipient or enter a valid email.';
+    }
     if (n >= 4) {
       if (!/^\d{6}$/.test(s.defusePin)) return 'defuse PIN must be 6 digits.';
       if (!/^\d{6}$/.test(s.duressPin)) return 'duress PIN must be 6 digits.';
@@ -218,16 +234,66 @@
     return null;
   }
 
+  // Load the user's enrolled recipients into the picker.
+  async function loadEnrolledRecipients() {
+    try {
+      const r = await SB.api('/api/account/recipients');
+      const enrolled = (r.recipients || []).filter(rc => rc.status === 'enrolled');
+      if (!enrolled.length) return;
+      const wrap = document.getElementById('enrolled-recipients');
+      const list = document.getElementById('enrolled-list');
+      wrap.style.display = 'block';
+      list.innerHTML = '';
+      for (const rec of enrolled) {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        row.style.cursor = 'pointer';
+        const label = (rec.display_name ? rec.display_name + ' · ' : '') + rec.email;
+        row.innerHTML =
+          '<div class="settings-key" style="display: flex; align-items: center; gap: 8px;">' +
+            '<input type="radio" name="enrolled-radio" value="' + rec.id + '" />' +
+            '<span style="font-size: 13px;">' + label + '</span>' +
+          '</div>' +
+          '<div class="settings-val t-faint" style="font-size: 11px;">arms instantly</div>';
+        row.addEventListener('click', () => {
+          row.querySelector('input[type=radio]').checked = true;
+          selectedRecipientId = rec.id;
+          selectedRecipientLabel = label;
+          // Selecting a pre-enrolled recipient blanks the invite-new fields.
+          document.getElementById('recipient-email').value = '';
+          document.getElementById('recipient-name').value = '';
+        });
+        list.appendChild(row);
+      }
+    } catch {}
+  }
+  loadEnrolledRecipients();
+
+  // Typing in the email field deselects any picked recipient.
+  document.getElementById('recipient-email').addEventListener('input', () => {
+    if (selectedRecipientId) {
+      selectedRecipientId = null;
+      selectedRecipientLabel = null;
+      document.querySelectorAll('input[name=enrolled-radio]').forEach(x => x.checked = false);
+    }
+  });
+
   function renderReview() {
     const s = getState();
     const days = Math.round(s.timerSeconds / 86400);
+    const recipDisplay = s.accountRecipientId
+      ? (selectedRecipientLabel || 'enrolled recipient') + ' (arms immediately)'
+      : (s.recipientEmail || '—') + ' (will be invited)';
+    const statusAfter = s.accountRecipientId
+      ? 'armed — timer starts on submit'
+      : 'pending — awaiting recipient enrollment';
     document.getElementById('review-list').innerHTML = [
       '→ payload: <span class="t-faint">text · ' + new Blob([s.payload]).size + ' bytes</span>',
-      '→ recipient: <span class="t-faint">' + (s.recipientEmail || '—') + '</span>',
+      '→ recipient: <span class="t-faint">' + recipDisplay + '</span>',
       '→ timer: <span class="t-faint">' + days + ' days</span>',
       '→ defuse PIN: <span class="t-faint">' + (s.defusePin ? 'set' : '—') + '</span>',
       '→ duress PIN: <span class="t-faint">' + (s.duressPin ? 'set' : '—') + '</span>',
-      '→ status after submit: <span class="t-faint">pending — awaiting recipient enrollment</span>',
+      '→ status after submit: <span class="t-faint">' + statusAfter + '</span>',
     ].map(line => '<div>' + line + '</div>').join('');
   }
 
@@ -253,8 +319,38 @@
     try {
       const enc = new TextEncoder();
       const { blob, K } = await SB.encryptPayload(enc.encode(s.payload));
-      status.innerHTML += '<div class="t-soft">→ splitting the encryption key (we keep one half, you hold the recipient\'s half until they enroll)…</div>';
       const { shareA, shareB } = SB.splitKey(K);
+
+      if (s.accountRecipientId) {
+        // New flow: pre-enrolled recipient. Fetch their pubkey, ECIES-encrypt
+        // shareB to it locally, submit; switch arms immediately on the server.
+        status.innerHTML += '<div class="t-soft">→ fetching recipient pubkey…</div>';
+        const pk = await SB.api('/api/account/recipients/' + s.accountRecipientId + '/pubkey');
+        status.innerHTML += '<div class="t-soft">→ encrypting recipient half to their public key…</div>';
+        const envelope = await SB.eciesEncrypt(shareB, pk.pubkeyJwk);
+        status.innerHTML += '<div class="t-soft">→ submitting (this arms the switch immediately)…</div>';
+        const r = await SB.api('/api/switches', {
+          method: 'POST',
+          body: JSON.stringify({
+            payloadCiphertextB64: SB.bytesToB64(blob),
+            payloadSizeBytes: blob.length,
+            shareAB64: SB.bytesToB64(shareA),
+            accountRecipientId: s.accountRecipientId,
+            encryptedShareBJson: JSON.stringify(envelope),
+            timerSeconds: s.timerSeconds,
+            defusePin: s.defusePin,
+            duressPin: s.duressPin,
+          }),
+        });
+        status.innerHTML +=
+          '<div style="color: var(--accent-2)">→ switch armed · id ' + r.switchId + '</div>' +
+          '<div class="t-soft">→ timer is running. you can check in from the dashboard.</div>' +
+          '<div style="margin-top:12px"><a class="btn btn-primary btn-sm" href="/dashboard.html">back to dashboard →</a></div>';
+        return;
+      }
+
+      // Legacy flow: invite by email, switch stays pending until recipient enrolls.
+      status.innerHTML += '<div class="t-soft">→ splitting the encryption key (we keep one half, you hold the recipient\'s half until they enroll)…</div>';
       status.innerHTML += '<div class="t-soft">→ uploading ciphertext + our half of the key…</div>';
       const r = await SB.api('/api/switches', {
         method: 'POST',

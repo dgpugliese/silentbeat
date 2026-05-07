@@ -27,8 +27,12 @@ switches.post('/', async (c) => {
   const body = await c.req.json<{
     payloadCiphertextB64: string;
     payloadSizeBytes: number;
-    shareAB64: string;          // 32-byte client-generated share. K = shareA XOR shareB.
-    recipientEmail: string;
+    shareAB64: string;
+    // Either targets a pre-enrolled recipient (immediate arm) ...
+    accountRecipientId?: string;
+    encryptedShareBJson?: string;
+    // ... OR invites a new recipient by email (legacy 'pending' flow).
+    recipientEmail?: string;
     timerSeconds: number;
     defusePin: string;
     duressPin: string;
@@ -52,25 +56,66 @@ switches.post('/', async (c) => {
   }
 
   const switchId = ulid();
-  const recipientId = ulid();
   const payloadKey = `payloads/${switchId}`;
-
-  const enrollmentToken = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
-  const enrollmentTokenHash = await sha256Hex(enrollmentToken);
-
   const [defuse, duress] = await Promise.all([hashPin(body.defusePin), hashPin(body.duressPin)]);
   const flip = Math.random() < 0.5;
   const pair = flip ? [duress, defuse] : [defuse, duress];
   const duressSlot = flip ? 0 : 1;
   const pinHashSet = JSON.stringify({ hashes: pair });
-
-  await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
-
-  const emailBlob = await aeadEncrypt(c.env, new TextEncoder().encode(body.recipientEmail), new TextEncoder().encode(switchId));
   const duressBlob = await aeadEncrypt(c.env, new Uint8Array([duressSlot]), new TextEncoder().encode(switchId));
 
   const now = Date.now();
   const expiry = now + body.timerSeconds * 1000;
+
+  // ===== New flow: pre-enrolled account_recipient → switch arms immediately =====
+  if (body.accountRecipientId) {
+    if (!body.encryptedShareBJson) {
+      return c.json({ error: 'encryptedShareBJson required for accountRecipientId' }, 400);
+    }
+    const recip = await c.env.DB.prepare(
+      `SELECT id, status FROM account_recipients WHERE id = ? AND owner_user_id = ?`,
+    ).bind(body.accountRecipientId, userId).first<{ id: string; status: string }>();
+    if (!recip) return c.json({ error: 'recipient_not_found' }, 404);
+    if (recip.status !== 'enrolled') return c.json({ error: 'recipient_not_enrolled' }, 409);
+
+    await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
+
+    await c.env.DB.prepare(
+      `INSERT INTO switches
+       (id, user_id, payload_r2_key, payload_size_bytes, share_a, pin_hash_set_json, duress_slot_wrapped,
+        expiry_at, timer_seconds, last_checkin_at, status, created_at,
+        account_recipient_id, encrypted_share_b_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'armed', ?, ?, ?)`,
+    ).bind(
+      switchId, userId, payloadKey, body.payloadSizeBytes, shareABytes, pinHashSet, duressBlob,
+      expiry, body.timerSeconds, now, now,
+      body.accountRecipientId, body.encryptedShareBJson,
+    ).run();
+
+    await append(c.env, switchId, 'switch_created');
+    await append(c.env, switchId, 'switch_armed');
+
+    // Arm the DO timer immediately.
+    const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(switchId));
+    await stub.fetch('https://do/arm', {
+      method: 'POST',
+      body: JSON.stringify({ switchId, expiryAt: expiry }),
+    }).catch(() => {});
+
+    return c.json({ switchId, status: 'armed' });
+  }
+
+  // ===== Legacy flow: invite-by-email, switch stays pending until finalize =====
+  if (!body.recipientEmail) {
+    return c.json({ error: 'recipientEmail or accountRecipientId required' }, 400);
+  }
+
+  const recipientId = ulid();
+  const enrollmentToken = bytesToB64(randomBytes(32)).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+  const enrollmentTokenHash = await sha256Hex(enrollmentToken);
+  const emailBlob = await aeadEncrypt(c.env, new TextEncoder().encode(body.recipientEmail), new TextEncoder().encode(switchId));
+
+  await c.env.PAYLOADS.put(payloadKey, b64ToBytes(body.payloadCiphertextB64));
 
   await c.env.DB.batch([
     c.env.DB.prepare(
@@ -126,9 +171,12 @@ switches.get('/:id', async (c) => {
   const id = c.req.param('id');
   const sw = await c.env.DB.prepare(
     `SELECT s.id, s.status, s.expiry_at, s.last_checkin_at, s.timer_seconds, s.payload_size_bytes, s.created_at,
-            r.id AS recipient_id, r.status AS recipient_status, r.pubkey_jwk_json
+            s.account_recipient_id,
+            r.id AS recipient_id, r.status AS recipient_status, r.pubkey_jwk_json,
+            ar.display_name AS account_recipient_name, ar.status AS account_recipient_status
      FROM switches s
      LEFT JOIN recipients r ON r.switch_id = s.id
+     LEFT JOIN account_recipients ar ON ar.id = s.account_recipient_id
      WHERE s.id = ? AND s.user_id = ?`,
   ).bind(id, userId).first();
   if (!sw) return c.json({ error: 'not found' }, 404);

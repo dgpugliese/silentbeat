@@ -71,6 +71,12 @@ switches.post('/', async (c) => {
       detail: `Your ${limits.plan} plan allows ${limits.maxActiveSwitches} active switch${limits.maxActiveSwitches === 1 ? '' : 'es'} at a time; upgrade for more.`,
     }, 402);
   }
+  if (!/^\d{6}$/.test(body.defusePin ?? '')) {
+    return c.json({ error: 'defuse PIN must be exactly 6 digits' }, 400);
+  }
+  if (!/^\d{6}$/.test(body.duressPin ?? '')) {
+    return c.json({ error: 'duress PIN must be exactly 6 digits' }, 400);
+  }
   if (body.defusePin === body.duressPin) {
     return c.json({ error: 'defuse and duress PINs must differ' }, 400);
   }
@@ -122,12 +128,18 @@ switches.post('/', async (c) => {
     await append(c.env, switchId, 'switch_created');
     await append(c.env, switchId, 'switch_armed');
 
-    // Arm the DO timer immediately.
+    // Arm the DO timer immediately. If the RPC fails, the cron sweeper will
+    // pick up the missed alarm within ~5 minutes; we log loudly so a real
+    // outage shows up in tail.
     const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(switchId));
-    await stub.fetch('https://do/arm', {
-      method: 'POST',
-      body: JSON.stringify({ switchId, expiryAt: expiry }),
-    }).catch(() => {});
+    try {
+      await stub.fetch('https://do/arm', {
+        method: 'POST',
+        body: JSON.stringify({ switchId, expiryAt: expiry }),
+      });
+    } catch (e) {
+      console.error('[switches.create.new-flow] DO arm failed', switchId, e);
+    }
 
     return c.json({ switchId, status: 'armed' });
   }
@@ -272,10 +284,14 @@ switches.post('/:id/finalize', async (c) => {
   ]);
 
   const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(id));
-  await stub.fetch('https://do/arm', {
-    method: 'POST',
-    body: JSON.stringify({ switchId: id, expiryAt: sw.expiry_at }),
-  }).catch(() => {});
+  try {
+    await stub.fetch('https://do/arm', {
+      method: 'POST',
+      body: JSON.stringify({ switchId: id, expiryAt: sw.expiry_at }),
+    });
+  } catch (e) {
+    console.error('[switches.finalize] DO arm failed', id, e);
+  }
 
   await append(c.env, id, 'switch_armed');
   return c.json({ ok: true, status: 'armed' });

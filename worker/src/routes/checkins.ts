@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
 import { verifyPin, sha256Hex, aeadDecrypt } from '../lib/crypto';
 import { append } from '../lib/auditlog';
+import { sendEmail } from '../lib/email';
 import { pinIsLocked, recordPinFailure, clearPinFailures } from '../lib/ratelimit';
 import { requireUser } from './middleware';
 
@@ -13,11 +14,58 @@ interface PinHashSet {
   hashes: [string, string]; // PHC-encoded (salt + params embedded)
 }
 
+// Sends a plain notification to the recipient when a duress PIN fires.
+// The payload is already purged at this point; there is nothing to decrypt.
+// The recipient receives only the fact that the switch was triggered under
+// duress, so they know the user wanted them to know something happened.
+async function sendDuressNotification(env: Env, switchId: string): Promise<void> {
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const row = await env.DB.prepare(
+    `SELECT s.account_recipient_id,
+            r.email_ct AS legacy_email_ct,
+            ar.email_ct AS account_email_ct,
+            ar.id      AS account_recipient_id_join
+     FROM switches s
+     LEFT JOIN recipients r ON r.switch_id = s.id
+     LEFT JOIN account_recipients ar ON ar.id = s.account_recipient_id
+     WHERE s.id = ?`,
+  ).bind(switchId).first<{
+    account_recipient_id: string | null;
+    legacy_email_ct: ArrayBuffer | null;
+    account_email_ct: ArrayBuffer | null;
+    account_recipient_id_join: string | null;
+  }>();
+  if (!row) return;
+  const isNewFlow = !!row.account_recipient_id;
+  const emailCtBuf = isNewFlow ? row.account_email_ct : row.legacy_email_ct;
+  const aad = isNewFlow ? row.account_recipient_id! : switchId;
+  if (!emailCtBuf) return;
+  const recipientEmail = dec.decode(await aeadDecrypt(env, new Uint8Array(emailCtBuf), enc.encode(aad)));
+
+  const text = [
+    'A SilentBeat switch you were named in has been triggered under duress.',
+    '',
+    'The user entered a duress PIN, which permanently destroys the encrypted',
+    'payload. There is nothing for you to decrypt; the message no longer',
+    'exists. The user wanted you to know that something happened.',
+    '',
+    `This event is recorded in our public log: ${env.PUBLIC_BASE_URL}/log.html`,
+  ].join('\n');
+
+  await sendEmail(env, {
+    to: recipientEmail,
+    subject: 'A SilentBeat switch was triggered under duress',
+    text,
+    html: `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55">${text}</pre>`,
+  });
+}
+
 checkins.post('/:id/checkin', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
   const { pin } = await c.req.json<{ pin: string }>();
-  if (!/^\d{6,}$/.test(pin)) return c.json({ error: 'invalid pin' }, 400);
+  if (!/^\d{6}$/.test(pin)) return c.json({ error: 'invalid pin' }, 400);
 
   const sw = await c.env.DB.prepare(
     `SELECT id, status, timer_seconds, pin_hash_set_json, duress_slot_wrapped, payload_r2_key
@@ -57,9 +105,17 @@ checkins.post('/:id/checkin', async (c) => {
       ).bind(ulid(), id, Date.now(), ipHash, uaHash),
     ]);
     const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(id));
-    await stub.fetch('https://do/cancel', { method: 'POST' }).catch(() => {});
+    try { await stub.fetch('https://do/cancel', { method: 'POST' }); }
+    catch (e) { console.error('[checkins.duress] DO cancel failed', id, e); }
     await append(c.env, id, 'duress_release');
-    // TODO Phase 4: trigger duress email to recipient (server share + bare keys; payload already gone)
+
+    // Notify the recipient that the switch was triggered under duress.
+    // Payload is already gone; there is nothing to decrypt. The recipient's role
+    // here is purely to know the user wanted them to know something happened.
+    await sendDuressNotification(c.env, id).catch((e) => {
+      console.error('[checkins.duress] notification email failed', id, e);
+    });
+
     return c.json({ result: 'released' });
   }
 
@@ -79,10 +135,16 @@ checkins.post('/:id/checkin', async (c) => {
   ]);
 
   const stub = c.env.SWITCH_TIMER.get(c.env.SWITCH_TIMER.idFromName(id));
-  await stub.fetch('https://do/checkin', {
-    method: 'POST',
-    body: JSON.stringify({ newExpiryAt: expiryAt }),
-  }).catch(() => {});
+  try {
+    await stub.fetch('https://do/checkin', {
+      method: 'POST',
+      body: JSON.stringify({ newExpiryAt: expiryAt }),
+    });
+  } catch (e) {
+    // Non-fatal: release() now guards against stale alarms by re-checking
+    // expiry_at, so a missed RPC means at worst an extra no-op alarm firing.
+    console.error('[checkins.defuse] DO checkin RPC failed', id, e);
+  }
 
   await append(c.env, id, 'checkin');
   return c.json({ result: 'defused', expiryAt });

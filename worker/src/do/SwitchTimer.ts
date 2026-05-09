@@ -62,7 +62,7 @@ export class SwitchTimer {
     //   - new (account_recipient): email + envelope live on switches/account_recipients
     //   - legacy (per-switch recipient): email + envelope live on the recipients row
     const sw = await this.env.DB.prepare(
-      `SELECT s.id, s.status, s.payload_r2_key, s.share_a,
+      `SELECT s.id, s.status, s.payload_r2_key, s.share_a, s.expiry_at,
               s.account_recipient_id, s.encrypted_share_b_json,
               r.email_ct AS legacy_email_ct,
               r.share_b_to_recipient AS legacy_share_b,
@@ -73,7 +73,7 @@ export class SwitchTimer {
        WHERE s.id = ?`,
     ).bind(switchId).first<{
       id: string; status: string; payload_r2_key: string;
-      share_a: ArrayBuffer;
+      share_a: ArrayBuffer; expiry_at: number;
       account_recipient_id: string | null;
       encrypted_share_b_json: string | null;
       legacy_email_ct: ArrayBuffer | null;
@@ -83,6 +83,14 @@ export class SwitchTimer {
 
     if (!sw) return { released: false, reason: 'switch_not_found' };
     if (sw.status !== 'armed') return { released: false, reason: `status_${sw.status}` };
+    // Guard against stale alarms. If a defuse advanced expiry but the DO RPC
+    // failed to update the alarm, the OLD alarm could still fire — this check
+    // makes release() a no-op if the new expiry hasn't elapsed yet.
+    if (sw.expiry_at > Date.now()) {
+      // Re-arm the alarm to the actual current expiry so we don't miss it.
+      await this.state.storage.setAlarm(sw.expiry_at);
+      return { released: false, reason: 'not_expired_yet' };
+    }
 
     const isNewFlow = !!sw.account_recipient_id;
     const emailCtBuf = isNewFlow ? sw.account_email_ct : sw.legacy_email_ct;

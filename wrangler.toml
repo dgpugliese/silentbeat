@@ -27,9 +27,17 @@ id = "5945a80e26a54148af5b40475c201c7c"
 name = "SWITCH_TIMER"
 class_name = "SwitchTimer"
 
+[[durable_objects.bindings]]
+name = "AUDIT_LOGGER"
+class_name = "AuditLogger"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SwitchTimer"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["AuditLogger"]
 
 [triggers]
 crons = ["*/5 * * * *"]

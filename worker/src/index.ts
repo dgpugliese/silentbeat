@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { SwitchTimer } from './do/SwitchTimer';
+import { AuditLogger } from './do/AuditLogger';
 import { sweepExpired } from './cron';
 import { auth } from './routes/auth';
 import { account } from './routes/account';
@@ -16,6 +17,7 @@ export interface Env {
   PAYLOADS: R2Bucket;
   SESSIONS: KVNamespace;
   SWITCH_TIMER: DurableObjectNamespace;
+  AUDIT_LOGGER: DurableObjectNamespace;
   ASSETS: Fetcher;
   ENVIRONMENT: string;
   PUBLIC_BASE_URL: string;
@@ -53,4 +55,4 @@ export default {
   },
 };
 
-export { SwitchTimer };
+export { SwitchTimer, AuditLogger };

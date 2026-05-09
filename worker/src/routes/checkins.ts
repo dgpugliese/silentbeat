@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { ulid } from '../lib/ulid';
-import { verifyPin, randomBytes, sha256Hex, aeadDecrypt } from '../lib/crypto';
+import { verifyPin, sha256Hex, aeadDecrypt } from '../lib/crypto';
 import { append } from '../lib/auditlog';
 import { pinIsLocked, recordPinFailure, clearPinFailures } from '../lib/ratelimit';
 import { requireUser } from './middleware';
@@ -63,13 +63,16 @@ checkins.post('/:id/checkin', async (c) => {
     return c.json({ result: 'released' });
   }
 
-  // Defuse path
-  const newShareA = randomBytes(32);
+  // Defuse path. share_a stays fixed for the switch's lifetime — rotating it
+  // would break decryption at release (recipient's encrypted shareB can only
+  // combine back to the original K with the original shareA). Earlier code
+  // here rotated it; that was a correctness bug. Only the timer + last
+  // check-in advance.
   const expiryAt = Date.now() + sw.timer_seconds * 1000;
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE switches SET share_a = ?, last_checkin_at = ?, expiry_at = ? WHERE id = ?`,
-    ).bind(newShareA, Date.now(), expiryAt, id),
+      `UPDATE switches SET last_checkin_at = ?, expiry_at = ? WHERE id = ?`,
+    ).bind(Date.now(), expiryAt, id),
     c.env.DB.prepare(
       `INSERT INTO checkins (id, switch_id, kind, at, ip_hash, ua_hash) VALUES (?, ?, 'defuse', ?, ?, ?)`,
     ).bind(ulid(), id, Date.now(), ipHash, uaHash),

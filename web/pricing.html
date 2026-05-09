@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SilentBeat — Pricing</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page page-wide">
+
+  <nav class="topbar">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="nav-links">
+      <a href="/threat-model.html">threat model</a>
+      <a href="/log.html">public log</a>
+      <a href="/pricing.html" class="active-link">pricing</a>
+      <a class="btn btn-sm" href="/signin.html">sign in</a>
+    </div>
+  </nav>
+
+  <header style="margin-top: 28px; text-align: center;">
+    <h1 class="h-hand" style="font-size: 56px; margin: 0; line-height: 1;">straight pricing.</h1>
+    <p class="t-soft" style="font-size: 16px; margin-top: 8px;">No hidden tiers, no usage games, no enterprise dance.</p>
+  </header>
+
+  <section class="pricing-grid" style="margin-top: 32px;">
+    <div class="wobble pricing-card">
+      <div class="panel-label t-mono">FREE</div>
+      <div class="h-hand" style="font-size: 44px; margin-top: 6px;">$0</div>
+      <div class="t-soft" style="font-size: 13px;">forever, no card needed</div>
+      <hr class="hr-sketch" style="margin: 14px 0;" />
+      <ul class="pricing-list">
+        <li><span class="ok">ok</span> 1 active switch</li>
+        <li><span class="ok">ok</span> 10 MB payload</li>
+        <li><span class="ok">ok</span> Up to 30-day timer</li>
+        <li><span class="ok">ok</span> Unlimited recipients (passkey-based)</li>
+        <li><span class="ok">ok</span> Public audit log access</li>
+        <li><span class="t-faint">—</span> No API access</li>
+      </ul>
+      <div class="actions" style="justify-content: flex-start; margin-top: 14px;">
+        <a class="btn btn-sm" href="/signup.html">create a free account →</a>
+      </div>
+    </div>
+
+    <div class="wobble pricing-card pricing-featured">
+      <div class="panel-label t-mono" style="color: var(--accent-2);">PREMIUM</div>
+      <div class="h-hand" style="font-size: 44px; margin-top: 6px;">$5<span style="font-size: 18px; color: var(--ink-soft);">/month</span></div>
+      <div class="t-soft" style="font-size: 13px;">or $40/year (save 33%)</div>
+      <hr class="hr-sketch" style="margin: 14px 0;" />
+      <ul class="pricing-list">
+        <li><span class="ok">ok</span> Unlimited switches</li>
+        <li><span class="ok">ok</span> 50 MB payload</li>
+        <li><span class="ok">ok</span> Up to 5-year timer</li>
+        <li><span class="ok">ok</span> Unlimited recipients</li>
+        <li><span class="ok">ok</span> Public audit log + mirror webhook</li>
+        <li><span class="ok">ok</span> API access for programmatic check-in</li>
+      </ul>
+      <div class="actions" style="justify-content: flex-start; margin-top: 14px;">
+        <a id="upgrade-btn" class="btn btn-primary btn-sm" href="/signin.html?next=/settings.html">sign in to upgrade →</a>
+      </div>
+    </div>
+  </section>
+
+  <section style="margin-top: 36px; max-width: 700px;">
+    <h2 class="h-hand" style="font-size: 28px;">Common questions.</h2>
+    <details class="faq">
+      <summary>Does upgrading change the security model?</summary>
+      <p class="t-soft">No. Free and premium accounts use the same split-key crypto, the same passkey-PRF recipient flow, and the same signed public log. Premium just lifts numerical limits.</p>
+    </details>
+    <details class="faq">
+      <summary>What happens if my subscription lapses?</summary>
+      <p class="t-soft">Existing armed switches keep running. You can still check in, defuse, and let them release normally. You just can't <em>create new</em> switches that exceed the free-tier limits, and you'll be capped to one active switch.</p>
+    </details>
+    <details class="faq">
+      <summary>Is my payment data on your servers?</summary>
+      <p class="t-soft">No. Payments are handled by Lemon Squeezy as the merchant of record. We see your subscription status (active/cancelled/expired), never your card details.</p>
+    </details>
+    <details class="faq">
+      <summary>Can I cancel anytime?</summary>
+      <p class="t-soft">Yes. Manage your subscription from the settings page; cancellation is immediate (no auto-renewal) but premium privileges last through the period you've already paid for.</p>
+    </details>
+  </section>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a> · <a href="/threat-model.html">threat model</a></span>
+  </div>
+
+</main>
+
+</body>
+</html>

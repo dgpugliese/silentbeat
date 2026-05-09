@@ -35,18 +35,27 @@ The full enumeration of who we defend against and what we don't lives at [`/thre
 | Recipient passkey + PRF | WebAuthn + extensions.prf | Deterministic 32-byte secret unlocks recipient's wrapped privkey at decrypt |
 | AEAD master-key wrapping | Workers Secret + AES-256-GCM | recipient email + duress slot |
 | Audit log signing | Ed25519 (WebCrypto) | every entry signed; root checkpoint published |
-| Email | Resend (planned) | dev mode logs to console |
+| Email | Resend | sign-in, recipient invites, release notifications |
 
 ## Layout
 
 ```
 silentbeat/
-├── web/              # static frontend (landing, app, log, decrypt tools)
-│   ├── app.js        # shared client: session, API wrapper, AES-GCM, ECIES, splitKey
-│   └── *.html        # landing, signin, signup, dashboard, create, finalize,
-│                     # checkin, log, enroll, recipient, threat-model
+├── web/              # static frontend (served by Workers Assets)
+│   ├── app.js        # shared client: session, API wrapper, AES-GCM, ECIES,
+│   │                 # split-key, WebAuthn passkey + PRF helpers
+│   ├── manifest.webmanifest
+│   └── *.html        # index, signin, signup, dashboard, create, checkin,
+│                     # finalize, log, settings, pricing, threat-model,
+│                     # enroll, enroll-account, recipient, decrypt
 ├── worker/src/       # Cloudflare Worker (Hono router, Durable Object, cron)
-├── migrations/       # D1 schema (0001..0004)
+│   ├── routes/       # auth, account, account_recipients, recipient_enroll,
+│   │                 # switches, checkins, recipients, log, release, middleware
+│   ├── lib/          # crypto, auditlog, plans, ratelimit, session, email, ulid
+│   ├── do/           # SwitchTimer Durable Object
+│   ├── cron.ts       # 5-min sweeper for missed alarms
+│   └── index.ts
+├── migrations/       # D1 schema (0001..0009)
 ├── design/           # original Claude Design wireframe bundle (reference)
 ├── wrangler.toml
 └── package.json
@@ -67,7 +76,8 @@ silentbeat/
 | 9 | Mobile / PWA pass + manifest | ✅ |
 | — | Resend wired, ENVIRONMENT=production, silentbeat.app live | ✅ |
 | 10 | Recipients as per-account entities; passkey + PRF replaces rescue file | ✅ |
-| 11 | Stripe — premium tier, plan enforcement, billing UI | next |
+| 11a | Premium tier scaffolding: schema, plan enforcement, /pricing, settings UI | ✅ |
+| 11b | Lemon Squeezy checkout + webhook, customer portal | next |
 
 ## Local dev
 
@@ -92,7 +102,9 @@ Workers Secrets (set with `wrangler secret put NAME`):
 - `MASTER_KEY` — 32-byte AES-GCM master KEK (base64)
 - `LOG_SIGNING_KEY` — Ed25519 PKCS8 (base64)
 - `LOG_PUBLIC_KEY` — Ed25519 SPKI (base64), published with each `/api/log/root`
-- `RESEND_API_KEY` — outbound email (when wired)
+- `RESEND_API_KEY` — outbound email
+- `LEMONSQUEEZY_API_KEY` — billing (premium tier; Phase 11b)
+- `LEMONSQUEEZY_WEBHOOK_SECRET` — billing webhook signature verification
 
 Generate dev secrets and write to `.dev.vars` (gitignored):
 

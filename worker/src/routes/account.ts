@@ -5,15 +5,11 @@
 
 import { Hono } from 'hono';
 import type { Env } from '../index';
-import { append } from '../lib/auditlog';
-import { hmacSha256Hex, sha256Hex, signEd25519, bytesToB64 } from '../lib/crypto';
+import { append, appendUserScoped } from '../lib/auditlog';
 import { destroySession, readBearer } from '../lib/session';
 import { requireUser } from './middleware';
 
 export const account = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
-
-const PUBLIC_SALT_USERS = 'silentbeat-public-users-v1';
-const enc = new TextEncoder();
 
 account.post('/delete', requireUser, async (c) => {
   const userId = c.get('userId');
@@ -40,10 +36,10 @@ account.post('/delete', requireUser, async (c) => {
   //    all FK to users with ON DELETE CASCADE.
   await c.env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(userId).run();
 
-  // 3) Pseudonymous account_deleted entry. The audit log uses switch_id_hash as a
-  //    column name but we reuse it for hashed user_id here — same shape, same
-  //    purpose (lets verifiers confirm we logged this without exposing identity).
-  await appendAccountDeleted(c.env, userId);
+  // 3) Pseudonymous account_deleted entry. switch_id_hash column is reused
+  //    here with a different HMAC salt (audit_log doesn't distinguish — both
+  //    are 64-char hex hashes; verifiers can compute either).
+  await appendUserScoped(c.env, userId, 'account_deleted');
 
   // 4) Invalidate the current bearer.
   const t = readBearer(c.req.raw);
@@ -51,24 +47,3 @@ account.post('/delete', requireUser, async (c) => {
 
   return c.json({ ok: true });
 });
-
-async function appendAccountDeleted(env: Env, userId: string): Promise<void> {
-  const at = Date.now();
-  const userIdHash = await hmacSha256Hex(PUBLIC_SALT_USERS, userId);
-
-  const last = await env.DB.prepare(
-    `SELECT seq, entry_hash FROM audit_log ORDER BY seq DESC LIMIT 1`,
-  ).first<{ seq: number; entry_hash: string }>();
-  const prevHash = last?.entry_hash ?? '0'.repeat(64);
-  const seq = (last?.seq ?? 0) + 1;
-  const event = 'account_deleted';
-
-  const entryHash = await sha256Hex(`${prevHash}|${userIdHash}|${event}|${at}`);
-  const sigInput = enc.encode(`${seq}|${event}|${at}|${prevHash}|${entryHash}`);
-  const signature = await signEd25519(env, sigInput);
-
-  await env.DB.prepare(
-    `INSERT INTO audit_log (switch_id_hash, event, at, prev_hash, entry_hash, signature)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(userIdHash, event, at, prevHash, entryHash, signature).run();
-}

@@ -37,7 +37,7 @@ new_sqlite_classes = ["SwitchTimer"]
 
 [[migrations]]
 tag = "v2"
-new_classes = ["AuditLogger"]
+new_sqlite_classes = ["AuditLogger"]
 
 [triggers]
 crons = ["*/5 * * * *"]

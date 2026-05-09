@@ -4,6 +4,7 @@ import { ulid } from '../lib/ulid';
 import { hashPin, randomBytes, b64ToBytes, bytesToB64, aeadEncrypt, sha256Hex } from '../lib/crypto';
 import { sendEmail } from '../lib/email';
 import { append } from '../lib/auditlog';
+import { getLimits, countActiveSwitches } from '../lib/plans';
 import { requireUser } from './middleware';
 
 export const switches = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -38,11 +39,37 @@ switches.post('/', async (c) => {
     duressPin: string;
   }>();
 
-  if (body.timerSeconds < 86400 || body.timerSeconds > 5 * 365 * 86400) {
-    return c.json({ error: 'timer out of range (24h–5y)' }, 400);
+  // Plan-based limits (free vs premium).
+  const limits = await getLimits(c.env, userId);
+  if (body.timerSeconds < 86400) {
+    return c.json({ error: 'timer must be at least 24h' }, 400);
   }
-  if (body.payloadSizeBytes > 50 * 1024 * 1024) {
-    return c.json({ error: 'payload exceeds 50MB' }, 400);
+  if (body.timerSeconds > limits.maxTimerSeconds) {
+    const days = Math.round(limits.maxTimerSeconds / 86400);
+    return c.json({
+      error: 'timer_exceeds_plan',
+      plan: limits.plan,
+      max_days: days,
+      detail: `Your ${limits.plan} plan allows up to ${days} days; upgrade for longer timers.`,
+    }, 402);
+  }
+  if (body.payloadSizeBytes > limits.maxPayloadBytes) {
+    const mb = Math.round(limits.maxPayloadBytes / (1024 * 1024));
+    return c.json({
+      error: 'payload_exceeds_plan',
+      plan: limits.plan,
+      max_mb: mb,
+      detail: `Your ${limits.plan} plan allows up to ${mb} MB; upgrade for larger payloads.`,
+    }, 402);
+  }
+  const activeCount = await countActiveSwitches(c.env, userId);
+  if (activeCount >= limits.maxActiveSwitches) {
+    return c.json({
+      error: 'switch_limit_reached',
+      plan: limits.plan,
+      max_active: limits.maxActiveSwitches,
+      detail: `Your ${limits.plan} plan allows ${limits.maxActiveSwitches} active switch${limits.maxActiveSwitches === 1 ? '' : 'es'} at a time; upgrade for more.`,
+    }, 402);
   }
   if (body.defusePin === body.duressPin) {
     return c.json({ error: 'defuse and duress PINs must differ' }, 400);

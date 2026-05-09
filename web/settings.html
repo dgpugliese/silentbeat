@@ -54,6 +54,20 @@
   </section>
 
   <section class="wobble settings-section">
+    <div class="panel-label t-mono">PLAN</div>
+    <div class="settings-row">
+      <span class="settings-key">current plan</span>
+      <span id="plan-name" class="settings-val t-mono">—</span>
+    </div>
+    <div class="settings-row" id="plan-period-row" style="display: none;">
+      <span class="settings-key">renews</span>
+      <span id="plan-period" class="settings-val t-mono">—</span>
+    </div>
+    <p id="plan-blurb" class="t-soft" style="font-size: 12px; line-height: 1.55; margin: 8px 0 0;"></p>
+    <div class="settings-actions" id="plan-actions"></div>
+  </section>
+
+  <section class="wobble settings-section">
     <div class="panel-label t-mono">PASSKEYS</div>
     <p class="t-soft" style="font-size: 13px; margin: 4px 0 10px;">
       Hardware-backed sign-in keys. Each device you register gets its own credential.
@@ -167,9 +181,58 @@
       if (!me.user) { location.replace('/signin.html'); return; }
       document.getElementById('acct-email').textContent = me.user.email;
       document.getElementById('acct-joined').textContent = fmtDate(me.user.created_at);
+      renderPlan(me.user);
     } catch (e) {
       if (e.status === 401) { SB.clearSession(); location.replace('/signin.html'); }
     }
+  }
+
+  function renderPlan(user) {
+    const planName = document.getElementById('plan-name');
+    const blurb = document.getElementById('plan-blurb');
+    const actions = document.getElementById('plan-actions');
+    const periodRow = document.getElementById('plan-period-row');
+    const periodEl = document.getElementById('plan-period');
+
+    actions.innerHTML = '';
+    if (user.plan === 'premium') {
+      planName.innerHTML = 'premium <span class="ok" style="margin-left: 6px;">active</span>';
+      if (user.current_period_end) {
+        periodRow.style.display = '';
+        periodEl.textContent = fmtDate(user.current_period_end);
+      }
+      blurb.textContent = 'Unlimited switches, 50 MB payloads, 5-year timers, API access (when shipped).';
+      const manage = document.createElement('button');
+      manage.className = 'btn btn-sm';
+      manage.type = 'button';
+      manage.textContent = 'manage billing';
+      manage.addEventListener('click', openCustomerPortal);
+      actions.appendChild(manage);
+    } else {
+      planName.textContent = 'free';
+      periodRow.style.display = 'none';
+      blurb.textContent = '1 active switch, 10 MB payload, 30-day timer. Upgrade for unlimited.';
+      const upgrade = document.createElement('button');
+      upgrade.className = 'btn btn-sm btn-primary';
+      upgrade.type = 'button';
+      upgrade.textContent = 'upgrade to premium →';
+      upgrade.addEventListener('click', openCheckout);
+      actions.appendChild(upgrade);
+      const compare = document.createElement('a');
+      compare.className = 'btn btn-sm';
+      compare.href = '/pricing.html';
+      compare.textContent = 'see pricing';
+      actions.appendChild(compare);
+    }
+  }
+
+  async function openCheckout() {
+    // Phase 11b will wire this. Until then, redirect to pricing.
+    location.href = '/pricing.html';
+  }
+  async function openCustomerPortal() {
+    // Phase 11b will return a Lemon Squeezy customer-portal URL here.
+    alert('Billing portal coming soon — once Lemon Squeezy is wired, this opens their hosted portal in a new tab.');
   }
 
   async function loadPasskeys() {

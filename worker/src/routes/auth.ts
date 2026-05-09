@@ -89,13 +89,25 @@ auth.get('/me', async (c) => {
   if (!t) return c.json({ user: null });
   const session = await readSession(c.env, t);
   if (!session) return c.json({ user: null });
-  const user = await c.env.DB.prepare(`SELECT id, email, created_at FROM users WHERE id = ?`)
-    .bind(session.userId).first();
+  const user = await c.env.DB.prepare(
+    `SELECT id, email, created_at, plan, subscription_status, current_period_end
+     FROM users WHERE id = ?`,
+  ).bind(session.userId).first<{
+    id: string; email: string; created_at: number;
+    plan: string | null; subscription_status: string | null;
+    current_period_end: number | null;
+  }>();
   if (!user) return c.json({ user: null });
   const pk = await c.env.DB.prepare(
     `SELECT COUNT(*) AS n FROM passkey_credentials WHERE user_id = ?`,
   ).bind(session.userId).first<{ n: number }>();
-  return c.json({ user: { ...user, passkey_count: pk?.n ?? 0 } });
+  return c.json({
+    user: {
+      ...user,
+      plan: user.plan ?? 'free',
+      passkey_count: pk?.n ?? 0,
+    },
+  });
 });
 
 // --- Passkey registration (requires existing session) ---

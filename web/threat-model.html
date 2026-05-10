@@ -30,8 +30,8 @@
     </div>
   </nav>
 
-  <h1 class="h-hand" style="font-size: 56px; margin: 24px 0 4px; line-height: 1;">Threat model.</h1>
-  <p class="t-soft" style="font-size: 16px;">What SilentBeat defends against, and what it doesn't.</p>
+  <h1 class="h-hand threat-title">Threat model.</h1>
+  <p class="t-soft threat-subtitle">What SilentBeat defends against, and what it doesn't.</p>
 
   <hr class="hr-sketch" />
 
@@ -48,49 +48,49 @@
       </thead>
       <tbody>
         <tr>
-          <td>curious operator (us reading the database)</td>
-          <td>Cannot decrypt your payload (no recipient share). Cannot read your recipient's email plaintext (KMS-wrapped DEK; access is logged). Cannot tell defuse from duress hash.</td>
-          <td>We can observe metadata: switch existence, expiry times, check-in cadence, recipient domain via outbound mail logs.</td>
+          <td data-label="actor">curious operator (us reading the database)</td>
+          <td data-label="defended">Cannot decrypt your payload (no recipient share). Cannot read your recipient's email plaintext (KMS-wrapped DEK; access is logged). Cannot tell defuse from duress hash.</td>
+          <td data-label="residual risk">We can observe metadata: switch existence, expiry times, check-in cadence, recipient domain via outbound mail logs.</td>
         </tr>
         <tr>
-          <td>compelled operator (subpoena, NSL, court order)</td>
-          <td>Crypto holds: server share alone doesn't decrypt. Audit log is signed; suppression leaves a gap detectable by mirrored copies.</td>
-          <td>A court can compel us to email the recipient with our key share + ciphertext. Combined with a compromised recipient, that decrypts. Sealed gag orders prevent us from publishing certain entries.</td>
+          <td data-label="actor">compelled operator (subpoena, NSL, court order)</td>
+          <td data-label="defended">Crypto holds: server share alone doesn't decrypt. Audit log is signed; suppression leaves a gap detectable by mirrored copies.</td>
+          <td data-label="residual risk">A court can compel us to email the recipient with our key share + ciphertext. Combined with a compromised recipient, that decrypts. Sealed gag orders prevent us from publishing certain entries.</td>
         </tr>
         <tr>
-          <td>network attacker (TLS in flight)</td>
-          <td>TLS 1.3 + HSTS. Payloads encrypted client-side before upload. Share B encrypted to recipient pubkey.</td>
-          <td>Traffic analysis: timing of check-ins, presence of an account.</td>
+          <td data-label="actor">network attacker (TLS in flight)</td>
+          <td data-label="defended">TLS 1.3 + HSTS. Payloads encrypted client-side before upload. Share B encrypted to recipient pubkey.</td>
+          <td data-label="residual risk">Traffic analysis: timing of check-ins, presence of an account.</td>
         </tr>
         <tr>
-          <td>malicious recipient</td>
-          <td>Cannot decrypt without server our half. Cannot force timer expiry.</td>
-          <td>Can wait. Can lie about losing recipient half to coerce you into early disclosure. Can publish the payload after release — we have no DRM.</td>
+          <td data-label="actor">malicious recipient</td>
+          <td data-label="defended">Cannot decrypt without server our half. Cannot force timer expiry.</td>
+          <td data-label="residual risk">Can wait. Can lie about losing recipient half to coerce you into early disclosure. Can publish the payload after release — we have no DRM.</td>
         </tr>
         <tr>
-          <td>malicious user (using SilentBeat to threaten release)</td>
-          <td>Recipient knows they were enrolled. Recipient can refuse / discard recipient half = preempt release.</td>
-          <td>We cannot prevent this product being used as a coercion tool. ToS forbids it. Abuse reports terminate accounts.</td>
+          <td data-label="actor">malicious user (using SilentBeat to threaten release)</td>
+          <td data-label="defended">Recipient knows they were enrolled. Recipient can refuse / discard recipient half = preempt release.</td>
+          <td data-label="residual risk">We cannot prevent this product being used as a coercion tool. ToS forbids it. Abuse reports terminate accounts.</td>
         </tr>
         <tr>
-          <td>coercer with the user (forcing defuse)</td>
-          <td>Duress PIN purges the payload + sends bare-keys email so recipient sees something happened.</td>
-          <td>A sophisticated coercer who knows duress PINs exist will demand evidence of which PIN was entered. Duress only protects against unsophisticated coercion.</td>
+          <td data-label="actor">coercer with the user (forcing defuse)</td>
+          <td data-label="defended">Duress PIN purges the payload + sends bare-keys email so recipient sees something happened.</td>
+          <td data-label="residual risk">A sophisticated coercer who knows duress PINs exist will demand evidence of which PIN was entered. Duress only protects against unsophisticated coercion.</td>
         </tr>
         <tr>
-          <td>lost device / lost PIN</td>
-          <td>72h / 24h / 1h escalating warnings. Two-window grace. Recovery codes at signup. Magic-link + PIN fallback for lost passkey.</td>
-          <td>Genuine memory loss or hospitalization mid-window will fire the switch. By design — that's what the switch is for.</td>
+          <td data-label="actor">lost device / lost PIN</td>
+          <td data-label="defended">72h / 24h / 1h escalating warnings. Two-window grace. Recovery codes at signup. Magic-link + PIN fallback for lost passkey.</td>
+          <td data-label="residual risk">Genuine memory loss or hospitalization mid-window will fire the switch. By design — that's what the switch is for.</td>
         </tr>
         <tr>
-          <td>user clears browser before finalize (legacy invite-by-email flow only)</td>
-          <td>None — recipient half lives only in this browser between create and finalize.</td>
-          <td>Only applies when you target a brand-new recipient by email. If you target a pre-enrolled recipient, the switch arms immediately and there is no finalize step.</td>
+          <td data-label="actor">user clears browser before finalize (legacy invite-by-email flow only)</td>
+          <td data-label="defended">None — recipient half lives only in this browser between create and finalize.</td>
+          <td data-label="residual risk">Only applies when you target a brand-new recipient by email. If you target a pre-enrolled recipient, the switch arms immediately and there is no finalize step.</td>
         </tr>
         <tr>
-          <td>recipient loses their device / passkey</td>
-          <td>If their passkey was synced to a backup (iCloud Keychain, Google Password Manager) it survives device loss. New device, same Apple/Google account → the passkey is there.</td>
-          <td>If the passkey was created without sync (a non-syncing security key, or a device whose cloud sync was off) and the device is lost, the message is unrecoverable. We tell recipients to enroll on a synced device.</td>
+          <td data-label="actor">recipient loses their device / passkey</td>
+          <td data-label="defended">If their passkey was synced to a backup (iCloud Keychain, Google Password Manager) it survives device loss. New device, same Apple/Google account → the passkey is there.</td>
+          <td data-label="residual risk">If the passkey was created without sync (a non-syncing security key, or a device whose cloud sync was off) and the device is lost, the message is unrecoverable. We tell recipients to enroll on a synced device.</td>
         </tr>
       </tbody>
     </table>
@@ -109,7 +109,7 @@
 
     <hr class="hr-sketch" />
 
-    <p class="t-soft" style="font-size: 13px;">
+    <p class="t-soft threat-footnote">
       Last revised: 2026-05-05. The threat model is a living document. Material changes are committed
       to the public log under <span class="t-mono">policy_revision</span> events, with a diff link.
     </p>

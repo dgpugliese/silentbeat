@@ -1,25 +1,38 @@
 # SilentBeat
 
-An honest dead man's switch. Encrypted in your browser. Released only if you stop checking in.
+> **An honest dead man's switch.** Encrypted in your browser. Released only if you stop checking in.
 
-**Live:** https://silentbeat.app
+🔗 **Live:** [silentbeat.app](https://silentbeat.app) &nbsp;·&nbsp; 🛡 [threat model](web/threat-model.html) &nbsp;·&nbsp; 📜 [audit log](https://silentbeat.app/log)
 
-## What it is
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Deployed on Cloudflare](https://img.shields.io/badge/edge-Cloudflare%20Workers-f38020)](https://workers.cloudflare.com/)
+[![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-d97757)](https://claude.com/claude-code)
 
 You write an encrypted message, name a recipient, and set a timer. As long as you check in before the timer runs out, nothing happens. If you stop, the message is delivered. Source-protection, estate notes, "if you're reading this" letters.
 
-## What "honest" means
+> ⚠ **"Honest" is a feature, not a marketing line.** A dead man's switch cannot be true zero-knowledge — *something* has to be released when you're not around to release it. Most products in this space dress that up. SilentBeat is upfront about it. The full enumeration of what we defend against and what we don't lives in the [threat model](web/threat-model.html).
 
-A dead man's switch cannot be true zero-knowledge — *something* has to be released when you're not around to release it. Most products in this space dress that up. SilentBeat is upfront about it.
+---
 
-The payload AES key is split into two halves:
+## How it works
 
-- **Our half** lives on our server. We have it.
-- **Recipient's half** is generated in your recipient's browser at enrollment, AES-wrapped under a key derived from their WebAuthn passkey via the PRF extension, and stored on our server in that wrapped form. We never see the unwrapped half.
+```
+sender browser            cloudflare worker            recipient browser
+──────────────            ─────────────────            ─────────────────
+write message    ───►   ciphertext stored in R2  ───►   passkey unwraps half-B
+AES-256-GCM             half-A held server-side          half-A fetched on release
+half-B wrapped under     ↓ DO setAlarm() / cron          combine → decrypt locally
+recipient's passkey       countdown timer
+                         ↓ (no check-in by deadline)
+                        release token → email recipient
+```
 
-Neither half decrypts on its own. At expiry, the recipient taps their passkey to unwrap their half locally, combine with our half, and decrypt the message. SilentBeat cannot combine them. That's the actual claim, end-to-end verified.
+The payload AES key is split in two:
 
-The full enumeration of who we defend against and what we don't lives at [`/threat-model.html`](web/threat-model.html).
+- **Our half (A)** lives on our server. We have it.
+- **Recipient's half (B)** is generated in the recipient's browser at enrollment, AES-wrapped under a key derived from their **WebAuthn passkey via the PRF extension**, and stored on our server in that wrapped form. We never see the unwrapped half.
+
+Neither half decrypts on its own. At expiry, the recipient taps their passkey to unwrap their half locally, combines with our half, and decrypts the message. SilentBeat cannot combine them. That's the actual claim, end-to-end verified.
 
 ## Architecture
 
@@ -32,7 +45,7 @@ The full enumeration of who we defend against and what we don't lives at [`/thre
 | Encrypted payload blobs | R2 | up to 50 MB per switch |
 | Sessions, passkey challenges, release tokens | KV | TTL-based ephemeral state |
 | Argon2id PIN hashing | `argon2-wasm-edge` (static-imported WASM) | Workers reject runtime `WebAssembly.compile` |
-| Recipient passkey + PRF | WebAuthn + extensions.prf | Deterministic 32-byte secret unlocks recipient's wrapped privkey at decrypt |
+| Recipient passkey + PRF | WebAuthn + `extensions.prf` | deterministic 32-byte secret unwraps recipient's half-B at decrypt |
 | AEAD master-key wrapping | Workers Secret + AES-256-GCM | recipient email + duress slot |
 | Audit log signing | Ed25519 (WebCrypto) | every entry signed; root checkpoint published |
 | Email | Resend | sign-in, recipient invites, release notifications |
@@ -74,18 +87,17 @@ silentbeat/
 | 7 | WebAuthn passkey sign-in, HKDF on ECIES, single-use tokens, schema cleanup | ✅ |
 | 8 | Argon2id over WASM (`argon2-wasm-edge`) for predictable Worker CPU | ✅ |
 | 9 | Mobile / PWA pass + manifest | ✅ |
-| — | Resend wired, ENVIRONMENT=production, silentbeat.app live | ✅ |
+| — | Resend wired, `ENVIRONMENT=production`, silentbeat.app live | ✅ |
 | 10 | Recipients as per-account entities; passkey + PRF replaces rescue file | ✅ |
 | 11a | Premium tier scaffolding: schema, plan enforcement, /pricing, settings UI | ✅ |
 | 11b | Lemon Squeezy checkout + webhook, customer portal | next |
 
-## Local dev
+## Quick start
 
 ```bash
 npm install
 npm run db:migrate:local
-npm run dev
-# http://localhost:8787
+npm run dev          # http://localhost:8787
 ```
 
 The original Claude Design wireframe bundle is preserved under `design/project/`:
@@ -95,7 +107,7 @@ cd design/project && python3 -m http.server 8080
 # http://localhost:8080/SilentBeat%20Wireframes.html
 ```
 
-## Deploying
+### Deploy
 
 Workers Secrets (set with `wrangler secret put NAME`):
 
@@ -121,8 +133,12 @@ console.log('LOG_PUBLIC_KEY=' + ed.publicKey.toString('base64'));
 " > .dev.vars
 ```
 
-`wrangler.toml` carries non-secret IDs (D1 database_id, KV id, account ID). They are public; without your Cloudflare API token they grant nothing. The `.dev.vars` file is gitignored.
+[`wrangler.toml`](wrangler.toml) carries non-secret IDs (D1 `database_id`, KV id, account ID). They are public; without your Cloudflare API token they grant nothing. The `.dev.vars` file is gitignored.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<sub>Built end-to-end with [Claude Code](https://claude.com/claude-code) — design via Claude Design, frontend + Cloudflare Worker written collaboratively, infrastructure provisioned through the Cloudflare MCP. AI as a serious engineering partner, not a code-completion toy.</sub>

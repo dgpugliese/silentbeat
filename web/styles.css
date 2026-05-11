@@ -554,20 +554,16 @@ a:hover { color: var(--accent-2); }
   letter-spacing: 0.08em; text-transform: uppercase;
 }
 .threat-table td:first-child { width: 26%; font-family: var(--mono); font-size: 12px; }
-.threat-title {
-  font-size: clamp(36px, 9vw, 56px);
-  margin: 24px 0 4px;
-  line-height: 1;
-}
+/* === Page titles (responsive) === */
+.page-title    { font-size: clamp(26px, 6vw, 32px); margin: 0; line-height: 1.1; }
+.page-title-md { font-size: clamp(28px, 7vw, 36px); margin: 0; line-height: 1.1; }
+.page-title-lg { font-size: clamp(32px, 8vw, 44px); margin: 0; line-height: 1.1; }
+.page-title-xl { font-size: clamp(36px, 9vw, 56px); margin: 24px 0 4px; line-height: 1; }
+
 .threat-subtitle { font-size: 16px; }
 .threat-footnote { font-size: 13px; }
 
 /* === Status page === */
-.status-title {
-  font-size: clamp(36px, 9vw, 56px);
-  margin: 24px 0 4px;
-  line-height: 1;
-}
 .status-subtitle { font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
 .status-subtitle .t-mono { font-size: 12px; color: var(--ink-faint); }
 

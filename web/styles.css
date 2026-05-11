@@ -515,6 +515,108 @@ a:hover { color: var(--accent-2); }
 }
 .threat-subtitle { font-size: 16px; }
 .threat-footnote { font-size: 13px; }
+
+/* === Status page === */
+.status-title {
+  font-size: clamp(36px, 9vw, 56px);
+  margin: 24px 0 4px;
+  line-height: 1;
+}
+.status-subtitle { font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.status-subtitle .t-mono { font-size: 12px; color: var(--ink-faint); }
+
+.status-panel {
+  border: 1px dashed var(--ink-faint);
+  border-radius: 6px;
+  padding: 18px 20px;
+  margin-top: 18px;
+}
+.status-panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.status-panel-label {
+  font-family: var(--mono); font-weight: 600;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.status-panel-meta {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
+}
+.status-panel-headline {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 22px;
+  margin: 6px 0 8px;
+}
+.status-panel-foot {
+  font-size: 13px; line-height: 1.55; margin: 10px 0 0;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex-shrink: 0;
+}
+.status-dot[data-state="ok"]       { background: var(--accent-2, #6fcf97); box-shadow: 0 0 8px rgba(111, 207, 151, 0.5); }
+.status-dot[data-state="degraded"] { background: #e6c34a; box-shadow: 0 0 8px rgba(230, 195, 74, 0.45); }
+.status-dot[data-state="down"]     { background: var(--accent, #e07a5f); box-shadow: 0 0 8px rgba(224, 122, 95, 0.5); }
+.status-dot[data-state="pending"]  { background: var(--ink-faint); }
+
+.status-panel .status-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--ink-faint);
+  justify-content: flex-start;
+}
+.status-panel .status-row:last-of-type { border-bottom: 0; }
+.status-row-body { flex: 1; min-width: 0; }
+.status-row-title { font-size: 15px; }
+.status-row-detail { font-size: 12px; color: var(--ink-soft); margin-top: 2px; word-break: break-word; }
+
+.uptime-bars {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+.uptime-bar {
+  height: 36px;
+  border-radius: 3px;
+  background: var(--ink-faint);
+}
+.uptime-bar[data-state="ok"]       { background: var(--accent-2, #6fcf97); }
+.uptime-bar[data-state="degraded"] { background: #e6c34a; }
+.uptime-bar[data-state="down"]     { background: var(--accent, #e07a5f); }
+.uptime-legend {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  font-size: 11px; color: var(--ink-soft);
+  margin-top: 6px;
+}
+.uptime-legend i {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  margin-right: 6px; vertical-align: middle;
+}
+.uptime-swatch[data-state="ok"]       { background: var(--accent-2, #6fcf97); }
+.uptime-swatch[data-state="degraded"] { background: #e6c34a; }
+.uptime-swatch[data-state="down"]     { background: var(--accent, #e07a5f); }
+
+.incidents-list { display: flex; flex-direction: column; gap: 10px; }
+.incident-row {
+  display: flex; gap: 14px; align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--ink-faint);
+}
+.incident-row:last-child { border-bottom: 0; }
+.incident-date { font-size: 12px; color: var(--ink-soft); flex-shrink: 0; min-width: 90px; }
+.incident-title { font-size: 14px; }
+.incident-meta { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+
+.status-footnote { font-size: 12px; color: var(--ink-soft); margin-top: 18px; }
 .active-link { color: var(--ink) !important; text-decoration: underline wavy; text-underline-offset: 4px; }
 
 /* === Sign in === */
@@ -722,6 +824,11 @@ a:hover { color: var(--accent-2); }
   .recipient-actions .btn, .card-actions .btn, .create-actions .btn { justify-content: center; }
   .copy-md h2 { font-size: 24px; }
   .copy-md p { font-size: 15px; }
+  .status-panel { padding: 14px 14px; }
+  .status-panel-headline { font-size: 18px; }
+  .uptime-bars { gap: 3px; }
+  .uptime-bar { height: 28px; }
+  .incident-row { flex-direction: column; gap: 4px; align-items: flex-start; }
 }
 
 @media (max-width: 420px) {

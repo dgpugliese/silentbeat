@@ -11,6 +11,7 @@ import { checkins } from './routes/checkins';
 import { recipients } from './routes/recipients';
 import { log } from './routes/log';
 import { release } from './routes/release';
+import { status } from './routes/status';
 
 export interface Env {
   DB: D1Database;
@@ -45,6 +46,7 @@ app.route('/api/switches', checkins);
 app.route('/api/recipients', recipients);
 app.route('/api/log', log);
 app.route('/api/release', release);
+app.route('/api/status', status);
 
 app.notFound((c) => c.env.ASSETS.fetch(c.req.raw));
 

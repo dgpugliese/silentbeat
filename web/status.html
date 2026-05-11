@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SilentBeat — Status</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+<meta name="theme-color" content="#0f1012" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="silentbeat" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/brand/favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<main class="page">
+
+  <nav class="topbar">
+    <a href="/" class="brand">
+      <span class="name">silentbeat</span>
+      <span class="blip" aria-hidden="true"></span>
+    </a>
+    <div class="nav-links">
+      <a href="/threat-model.html">threat model</a>
+      <a href="/status.html" class="active-link">status</a>
+      <a href="/log.html">public log</a>
+      <a href="/signin.html">sign in</a>
+    </div>
+  </nav>
+
+  <h1 class="h-hand status-title">Status.</h1>
+  <p class="t-soft status-subtitle">Pipeline health, self-reported. <span class="t-mono" id="as-of">—</span></p>
+
+  <hr class="hr-sketch" />
+
+  <section class="status-panel">
+    <header class="status-panel-head">
+      <span class="status-panel-label">current</span>
+      <span class="status-panel-meta" id="edge-meta">checking…</span>
+    </header>
+    <div class="status-panel-headline">
+      <span class="status-dot" id="edge-dot" data-state="pending" aria-hidden="true"></span>
+      <span id="edge-headline" class="t-mono">edge reachable · — ms</span>
+    </div>
+    <p class="t-soft status-panel-foot">Live check: HTTPS GET <span class="t-mono">/api/health</span> from your browser. Reflects what you can reach right now, not a global view.</p>
+  </section>
+
+  <section class="status-panel">
+    <header class="status-panel-head">
+      <span class="status-panel-label">pipeline health</span>
+      <span class="status-panel-meta">delivery path · backend signals</span>
+    </header>
+
+    <div class="status-row">
+      <span class="status-dot" id="audit-dot" data-state="pending" aria-hidden="true"></span>
+      <div class="status-row-body">
+        <div class="status-row-title">audit log chain</div>
+        <div class="status-row-detail t-mono" id="audit-detail">checking…</div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <span class="status-dot" id="sweeper-dot" data-state="pending" aria-hidden="true"></span>
+      <div class="status-row-body">
+        <div class="status-row-title">cron sweeper</div>
+        <div class="status-row-detail t-mono" id="sweeper-detail">checking…</div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <span class="status-dot" id="email-dot" data-state="pending" aria-hidden="true"></span>
+      <div class="status-row-body">
+        <div class="status-row-title">email delivery</div>
+        <div class="status-row-detail t-mono" id="email-detail">checking…</div>
+      </div>
+    </div>
+
+    <p class="t-soft status-panel-foot">No counts, no IDs, no addresses. State is derived from the public audit log root, a sweeper heartbeat, and whether the mail provider is configured. The threat model has the full picture of what each signal means.</p>
+  </section>
+
+  <section class="status-panel">
+    <header class="status-panel-head">
+      <span class="status-panel-label">last 30 days</span>
+      <span class="status-panel-meta" id="uptime-pct">— uptime</span>
+    </header>
+    <div class="uptime-bars" id="uptime-bars" aria-label="30-day uptime"></div>
+    <div class="uptime-legend t-mono">
+      <span><i class="uptime-swatch" data-state="ok"></i> operational</span>
+      <span><i class="uptime-swatch" data-state="degraded"></i> degraded</span>
+      <span><i class="uptime-swatch" data-state="down"></i> outage</span>
+    </div>
+    <p class="t-soft status-panel-foot">Self-reported. Computed from <a class="t-mono" href="/incidents.json">incidents.json</a> in the public repo. Days with no recorded incident are shown as operational. We do not run a third-party uptime monitor against ourselves yet — when we do, this will switch to its data.</p>
+  </section>
+
+  <section class="status-panel">
+    <header class="status-panel-head">
+      <span class="status-panel-label">incident history</span>
+      <span class="status-panel-meta" id="incidents-count">— total</span>
+    </header>
+    <div id="incidents-list" class="incidents-list">
+      <p class="t-soft" id="incidents-empty">Loading…</p>
+    </div>
+  </section>
+
+  <hr class="hr-sketch" />
+
+  <p class="t-soft status-footnote">
+    Sources: <a class="t-mono" href="/incidents.json">incidents.json</a> ·
+    <a class="t-mono" href="/api/log/root">audit log root</a> ·
+    <a class="t-mono" href="/api/status/pipeline">pipeline JSON</a>
+  </p>
+
+  <div class="footer">
+    <span>silentbeat — philadelphia, pa</span>
+    <span><a href="/log.html">public log</a></span>
+  </div>
+
+</main>
+
+<script src="status.js"></script>
+</body>
+</html>

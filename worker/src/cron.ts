@@ -1,5 +1,7 @@
 import type { Env } from './index';
 
+export const SWEEPER_HEARTBEAT_KEY = 'status:sweeper:last_run';
+
 export async function sweepExpired(env: Env): Promise<void> {
   const now = Date.now();
   const { results } = await env.DB.prepare(
@@ -13,4 +15,6 @@ export async function sweepExpired(env: Env): Promise<void> {
       body: JSON.stringify({ switchId: row.id }),
     }).catch(() => {});
   }
+
+  await env.SESSIONS.put(SWEEPER_HEARTBEAT_KEY, String(now)).catch(() => {});
 }

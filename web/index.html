@@ -52,6 +52,58 @@
 
   <hr class="hr-sketch" />
 
+  <section id="how" class="how-section">
+    <h2 class="h-hand how-title">How it works.</h2>
+    <svg class="underline-sketch" width="220" height="10" viewBox="0 0 220 10" aria-hidden="true">
+      <path d="M2 6 Q 55 1, 110 5 T 218 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+    </svg>
+    <p class="how-lede">The payload key is split in two. We hold one half. Your recipient's browser generates the other and we never see it unwrapped. Neither half decrypts alone.</p>
+
+    <div class="how-diagram-wrap">
+<pre class="how-diagram t-mono" aria-hidden="true">
+sender browser            silentbeat (cloudflare)        recipient browser
+──────────────            ─────────────────────────      ─────────────────
+write message      ───►   ciphertext in R2          ───►   passkey unwraps half-B
+AES-256-GCM               half-A held server-side          half-A fetched on release
+half-B wrapped under        ↓ DO setAlarm() / cron         combine → decrypt locally
+recipient's passkey         countdown timer
+                            ↓ (no check-in by deadline)
+                          release token → email recipient
+</pre>
+    </div>
+
+    <ol class="how-steps">
+      <li>
+        <span class="how-step-num t-mono">01</span>
+        <div>
+          <strong>You write.</strong> Your browser AES-256-GCM-encrypts the payload before anything leaves the page. The data key is split: half A goes to us in the clear; half B is AES-wrapped under a key derived from your recipient's <span class="t-mono">WebAuthn passkey + PRF</span> and stored on our server in that wrapped form. We never see half B unwrapped.
+        </div>
+      </li>
+      <li>
+        <span class="how-step-num t-mono">02</span>
+        <div>
+          <strong>You check in.</strong> A Durable Object holds your timer with <span class="t-mono">setAlarm()</span>. Each check-in pushes the deadline back. A 5-minute cron sweeper catches anything the DO ever misses.
+        </div>
+      </li>
+      <li>
+        <span class="how-step-num t-mono">03</span>
+        <div>
+          <strong>If you stop, it ships.</strong> At the deadline, we email half A to your recipient along with a link to fetch the ciphertext. Every release is appended to a signed, public audit log.
+        </div>
+      </li>
+      <li>
+        <span class="how-step-num t-mono">04</span>
+        <div>
+          <strong>Recipient decrypts in-browser.</strong> They fetch the wrapped half B, tap their passkey to unwrap it locally, combine with half A, and decrypt the message. SilentBeat — the company, the operator, the database — cannot do this for them.
+        </div>
+      </li>
+    </ol>
+
+    <p class="how-foot t-soft">The full enumeration of what we defend against and what we don't is in the <a href="/threat-model.html">threat model</a>.</p>
+  </section>
+
+  <hr class="hr-sketch" />
+
   <section class="trust-grid">
     <div class="trust-col">
       <h3 class="h-hand">What the server can do</h3>

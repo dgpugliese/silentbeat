@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply silentbeat --local",
     "db:migrate:remote": "wrangler d1 migrations apply silentbeat --remote",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:ui": "bash scripts/check-ui-consistency.sh"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
@@ -21,3 +22,4 @@
     "hono": "^4.12.18"
   }
 }
+

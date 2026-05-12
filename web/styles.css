@@ -38,7 +38,7 @@ a:hover { color: var(--accent-2); }
 .t-soft { color: var(--ink-soft); }
 
 .page {
-  max-width: 620px;
+  max-width: 980px;
   margin: 0 auto;
   padding:
     max(20px, env(safe-area-inset-top, 0))

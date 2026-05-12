@@ -828,7 +828,7 @@ a:hover { color: var(--accent-2); }
 }
 
 @media (max-width: 760px) {
-  .nav-links { gap: 14px; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+  .nav-links { gap: 14px; font-size: 13px; flex-wrap: wrap; justify-content: flex-start; }
   .pricing-grid { grid-template-columns: 1fr; }
   .topbar { gap: 12px; flex-wrap: wrap; }
   .appnav { gap: 12px; flex-wrap: wrap; }

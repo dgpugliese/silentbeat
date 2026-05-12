@@ -35,6 +35,18 @@
     decrypts it). The combined key never leaves this page.
   </p>
 
+  <aside class="legacy-banner" role="note" aria-label="Legacy decryption flow">
+    <span class="legacy-banner-tag">legacy flow</span>
+    <p>
+      This page handles the original rescue-file decryption flow. If your release email
+      gave you a rescue file (JSON) plus three values to paste — you&rsquo;re in the right place.
+      If your email instead told you to open the message with a passkey, you want
+      <a href="/decrypt.html">decrypt.html</a> — that&rsquo;s the current flow for recipients
+      enrolled with an account. Both flows are real; the page you land on is chosen by the
+      sender&rsquo;s release email.
+    </p>
+  </aside>
+
   <section class="wobble verify-card" style="padding: 16px;">
     <div class="t-mono t-faint" style="font-size: 11px;">// rescue file (the JSON you saved when you enrolled)</div>
     <input id="rescue-file" type="file" accept="application/json,.json" class="field" style="margin-top: 6px;" />

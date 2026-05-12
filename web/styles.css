@@ -509,6 +509,29 @@ a:hover { color: var(--accent-2); }
 
 /* === Recipient verify === */
 .recipient-page { max-width: 540px; }
+
+.legacy-banner {
+  border: 1px dashed var(--ink-faint);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 16px 0 18px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.legacy-banner-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px dashed var(--ink-faint);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-bottom: 6px;
+}
+.legacy-banner p { margin: 0; }
 .recipient-top {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 14px;
